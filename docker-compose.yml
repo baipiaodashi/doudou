@@ -1,0 +1,17 @@
+services:
+  pixel-beads:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pixel-bead-studio:latest
+    container_name: pixel-bead-studio
+    ports:
+      - "8080:80"
+    networks:
+      - default
+      - onenav_default
+    restart: unless-stopped
+
+networks:
+  onenav_default:
+    external: true
