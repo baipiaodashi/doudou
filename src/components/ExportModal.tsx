@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import type { QuantizeResult } from '../utils/quantize';
 import { generatePatternCanvas } from '../utils/exportPattern';
 import type { ExportOptions } from '../utils/exportPattern';
-import { Download, X, Image as ImageIcon } from 'lucide-react';
+import { requestVpsExport } from '../services/vpsService';
+import { Download, X, Image as ImageIcon, Server, Laptop, Loader2 } from 'lucide-react';
 
 interface ExportModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface ExportModalProps {
   result: QuantizeResult;
   pegboardWidth: number;
   pegboardHeight: number;
+  vpsAvailable?: boolean;
 }
 
 export const ExportModal: React.FC<ExportModalProps> = ({
@@ -17,7 +19,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   onClose,
   result,
   pegboardWidth,
-  pegboardHeight
+  pegboardHeight,
+  vpsAvailable = true
 }) => {
   const [options, setOptions] = useState<ExportOptions>({
     cellSize: 28,
@@ -32,34 +35,69 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     title: '拼豆图纸工坊 - 高清制作图纸'
   });
 
+  const [useVps, setUseVps] = useState<boolean>(vpsAvailable);
   const [downloading, setDownloading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string>('');
 
   if (!isOpen) return null;
 
-  const handleExportHiRes = () => {
+  const handleExportHiRes = async () => {
     setDownloading(true);
-    setTimeout(() => {
+
+    if (useVps) {
       try {
-        const canvas = generatePatternCanvas(result, {
+        setStatusMessage('VPS 算力队列缓冲中，正在生成打印级图纸...');
+        await requestVpsExport(result, {
           ...options,
           pegboardWidth,
           pegboardHeight
         });
-        const link = document.createElement('a');
-        link.download = `拼豆图纸_${result.width}x${result.height}_单板${pegboardWidth}x${pegboardHeight}_${Date.now()}.png`;
-        link.href = canvas.toDataURL('image/png');
-        link.click();
-      } catch (err) {
-        console.error('Export failed', err);
-        alert('导出图纸失败，请尝试调小分辨率！');
+      } catch (err: any) {
+        console.warn('VPS 导出失败，自动尝试降级为本地浏览器渲染', err);
+        setStatusMessage('VPS 队列拥堵，正在自动切换为本地渲染...');
+        // 自动降级本地
+        try {
+          const canvas = generatePatternCanvas(result, {
+            ...options,
+            pegboardWidth,
+            pegboardHeight
+          });
+          const link = document.createElement('a');
+          link.download = `拼豆图纸_${result.width}x${result.height}_单板${pegboardWidth}x${pegboardHeight}_${Date.now()}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        } catch {
+          alert('导出图纸失败，请尝试调小分辨率！');
+        }
       } finally {
         setDownloading(false);
+        setStatusMessage('');
       }
-    }, 100);
+    } else {
+      setStatusMessage('正在本地浏览器渲染...');
+      setTimeout(() => {
+        try {
+          const canvas = generatePatternCanvas(result, {
+            ...options,
+            pegboardWidth,
+            pegboardHeight
+          });
+          const link = document.createElement('a');
+          link.download = `拼豆图纸_${result.width}x${result.height}_单板${pegboardWidth}x${pegboardHeight}_${Date.now()}.png`;
+          link.href = canvas.toDataURL('image/png');
+          link.click();
+        } catch (err) {
+          console.error('Local export failed', err);
+          alert('本地导出图纸内存不足或超限，请尝试切换为 VPS 渲染或调小分辨率！');
+        } finally {
+          setDownloading(false);
+          setStatusMessage('');
+        }
+      }, 50);
+    }
   };
 
   const handleExportPixel = () => {
-    // Export 1:1 pixel art
     const canvas = document.createElement('canvas');
     canvas.width = result.width;
     canvas.height = result.height;
@@ -83,15 +121,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
               <Download size={18} />
             </div>
-            <h3 className="font-bold text-base text-slate-800">导出制作图纸</h3>
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-slate-800">导出制作图纸</h3>
+              <p className="text-[10px] sm:text-[11px] text-slate-400">支持服务端高清输出与本地多模式选择</p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -101,8 +142,53 @@ export const ExportModal: React.FC<ExportModalProps> = ({
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-4 text-xs text-slate-600">
+        {/* Content (Scrollable) */}
+        <div className="p-4 sm:p-6 space-y-4 text-xs text-slate-600 overflow-y-auto flex-1">
+          {/* 渲染节点选择 */}
+          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
+            <label className="font-semibold text-slate-700 block mb-2">生图渲染引擎节点</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setUseVps(true)}
+                className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                  useVps
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className={`p-1.5 rounded-md shrink-0 ${useVps ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  <Server size={14} />
+                </div>
+                <div>
+                  <div className="font-bold flex items-center gap-1">
+                    <span>VPS 云端渲染</span>
+                    <span className="text-[10px] bg-green-100 text-green-700 px-1 py-0.2 rounded font-normal">推荐</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">由服务器排版，手机/低配不崩溃</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setUseVps(false)}
+                className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                  !useVps
+                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 shadow-xs'
+                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <div className={`p-1.5 rounded-md shrink-0 ${!useVps ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  <Laptop size={14} />
+                </div>
+                <div>
+                  <div className="font-bold">本地访客设备</div>
+                  <div className="text-[10px] text-slate-400">浏览器离线绘制，图纸过大易闪退</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="font-semibold text-slate-700 block mb-1.5">图纸标题</label>
             <input
@@ -113,7 +199,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="font-semibold text-slate-700 block mb-1.5">分辨率 (单格大小)</label>
               <select
@@ -123,8 +209,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               >
                 <option value={16}>标准 (16px / 格)</option>
                 <option value={24}>清晰 (24px / 格)</option>
-                <option value={32}>高清推荐 (32px / 格)</option>
-                <option value={48}>超高清打印 (48px / 格)</option>
+                <option value={28}>高清制作推荐 (28px / 格)</option>
+                <option value={36}>超高清打印 (36px / 格)</option>
+                <option value={48}>极清展示 (48px / 格)</option>
               </select>
             </div>
 
@@ -151,7 +238,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 onChange={e => setOptions({ ...options, showLabels: e.target.checked })}
                 className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
               />
-              <span>在格子上标注色号 (如 M01, P04)</span>
+              <span>在格子标注色号 (如 M01, P04)</span>
             </label>
 
             <label className="flex items-center gap-2 cursor-pointer">
@@ -194,32 +281,54 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               <span>附带色号用料统计对照表</span>
             </label>
           </div>
+
+          {/* 缓冲提示 */}
+          {downloading && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 animate-pulse">
+              <Loader2 size={16} className="animate-spin text-amber-600 shrink-0" />
+              <div className="text-[11px] leading-tight">
+                <span className="font-semibold block">{statusMessage || '正在生成高清图纸...'}</span>
+                <span className="text-amber-600/80">服务器已开启并发缓冲保护，请稍候...</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
           <button
             onClick={handleExportPixel}
-            className="text-xs text-slate-600 hover:text-slate-800 flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition cursor-pointer"
+            disabled={downloading}
+            className="text-xs text-slate-600 hover:text-slate-800 flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
           >
             <ImageIcon size={14} />
-            <span>导出 1:1 像素原图</span>
+            <span className="hidden sm:inline">导出</span> 1:1 像素图
           </button>
 
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="text-xs px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+              disabled={downloading}
+              className="text-xs px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-slate-600 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
             >
               取消
             </button>
             <button
               onClick={handleExportHiRes}
               disabled={downloading}
-              className="text-xs px-5 py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              className="text-xs px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
             >
-              <Download size={14} />
-              <span>{downloading ? '生成中...' : '下载高清PNG图纸'}</span>
+              {downloading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>处理中...</span>
+                </>
+              ) : (
+                <>
+                  <Download size={14} />
+                  <span>下载PNG图纸</span>
+                </>
+              )}
             </button>
           </div>
         </div>

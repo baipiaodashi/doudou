@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PALETTES } from './data/palettes';
 import type { BeadColor, BrandKey } from './data/palettes';
 import { DEFAULT_PEGBOARDS, BEAD_DIAMETERS } from './data/pegboard';
@@ -9,6 +9,7 @@ import { PatternCanvas } from './components/PatternCanvas';
 import { StatsPanel } from './components/StatsPanel';
 import { ExportModal } from './components/ExportModal';
 import { generateSampleHeart, generateSampleMushroom, generateSamplePikachu } from './utils/sampleImages';
+import { checkVpsHealth, requestVpsQuantize } from './services/vpsService';
 import {
   Upload,
   Image as ImageIcon,
@@ -16,20 +17,22 @@ import {
   Sliders,
   Grid,
   Download,
-  Layers,
   Sparkles,
-  Hash,
-  Ruler,
   Lock,
   Unlock,
-  ChevronRight,
-  ChevronLeft,
   Plus,
   Trash2,
-  SplitSquareVertical
+  Server,
+  Laptop,
+  Loader2,
+  Check,
+  ListFilter
 } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // Mobile Tab Navigation State
+  const [mobileTab, setMobileTab] = useState<'canvas' | 'controls' | 'stats'>('canvas');
+
   // Image & Processing State
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
@@ -43,6 +46,12 @@ export const App: React.FC = () => {
   const [removeBg, setRemoveBg] = useState<boolean>(false);
   const [bgTolerance, setBgTolerance] = useState<number>(10);
   const [maxColors, setMaxColors] = useState<number>(0); // 0 = unlimited
+
+  // VPS 渲染架构与状态
+  const [renderBackend, setRenderBackend] = useState<'vps' | 'local'>('vps');
+  const [vpsOnline, setVpsOnline] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [processingTip, setProcessingTip] = useState<string>('');
 
   // Pegboard (单块拼豆板) 管理状态
   const [pegboardList, setPegboardList] = useState<PegboardConfig[]>(() => {
@@ -91,10 +100,23 @@ export const App: React.FC = () => {
   // UI state
   const [highlightColor, setHighlightColor] = useState<BeadColor | null>(null);
   const [isExportOpen, setIsExportOpen] = useState<boolean>(false);
-  const [showStats, setShowStats] = useState<boolean>(true);
   const [quantizeResult, setQuantizeResult] = useState<QuantizeResult | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // 初始化检查 VPS 健康状态
+  useEffect(() => {
+    checkVpsHealth().then(info => {
+      if (info && info.status === 'ok') {
+        setVpsOnline(true);
+        setRenderBackend('vps');
+      } else {
+        setVpsOnline(false);
+        setRenderBackend('local');
+      }
+    });
+  }, []);
 
   // Save custom pegboards to localStorage
   const savePegboardList = (list: PegboardConfig[]) => {
@@ -130,6 +152,7 @@ export const App: React.FC = () => {
     reader.onload = ev => {
       if (ev.target?.result) {
         loadImageUrl(ev.target.result as string);
+        setMobileTab('canvas'); // 上传后在手机端切回画板查看
       }
     };
     reader.readAsDataURL(file);
@@ -143,6 +166,7 @@ export const App: React.FC = () => {
       reader.onload = ev => {
         if (ev.target?.result) {
           loadImageUrl(ev.target.result as string);
+          setMobileTab('canvas');
         }
       };
       reader.readAsDataURL(file);
@@ -242,9 +266,15 @@ export const App: React.FC = () => {
   const totalBoardsY = Math.ceil(height / currentBoard.height);
   const totalBoardsCount = totalBoardsX * totalBoardsY;
 
-  // Re-run quantize whenever image or settings change
-  const runQuantize = useCallback(() => {
+  // 核心生图调度逻辑（带弱性能 VPS 防抖缓冲保护与自动无缝 Fallback）
+  useEffect(() => {
     if (!imageEl) return;
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const palette = selectedBrand === 'all'
       ? [...PALETTES.mard, ...PALETTES.perler, ...PALETTES.artkal]
@@ -263,16 +293,47 @@ export const App: React.FC = () => {
       maxColors: maxColors > 0 ? maxColors : undefined
     };
 
-    try {
-      const res = processImageToPattern(imageEl, options);
-      setQuantizeResult(res);
-      // Reset highlight if previous highlighted color is no longer used
-      if (highlightColor && !res.stats.some(s => s.color.code === highlightColor.code)) {
-        setHighlightColor(null);
+    const timer = setTimeout(async () => {
+      setIsProcessing(true);
+
+      if (renderBackend === 'vps') {
+        setProcessingTip('VPS 缓冲处理中...');
+        try {
+          const res = await requestVpsQuantize(imageEl, options, controller.signal);
+          setQuantizeResult(res);
+          setVpsOnline(true);
+        } catch (err: any) {
+          if (err.name === 'AbortError') return;
+          console.warn('[VPS Warning]: VPS 响应异常，自动回退到本地渲染', err);
+          setProcessingTip('VPS 队列拥堵，已临时降级为本地渲染...');
+          try {
+            const localRes = processImageToPattern(imageEl, options);
+            setQuantizeResult(localRes);
+          } catch (localErr) {
+            console.error('Local fallback failed', localErr);
+          }
+        } finally {
+          setIsProcessing(false);
+          setProcessingTip('');
+        }
+      } else {
+        setProcessingTip('本地渲染中...');
+        try {
+          const res = processImageToPattern(imageEl, options);
+          setQuantizeResult(res);
+        } catch (err) {
+          console.error('Local quantize error', err);
+        } finally {
+          setIsProcessing(false);
+          setProcessingTip('');
+        }
       }
-    } catch (err) {
-      console.error('Quantization error', err);
-    }
+    }, 280);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [
     imageEl,
     width,
@@ -285,40 +346,59 @@ export const App: React.FC = () => {
     contrast,
     saturation,
     maxColors,
-    highlightColor
+    renderBackend
   ]);
-
-  useEffect(() => {
-    runQuantize();
-  }, [runQuantize]);
 
   return (
     <div
-      className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100"
+      className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100 touch-manipulation"
       onDragOver={e => e.preventDefault()}
       onDrop={handleDrop}
     >
-      {/* 1. Header Bar */}
-      <header className="h-14 bg-white border-b border-slate-200 px-5 flex items-center justify-between shadow-xs z-20">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-gradient-to-tr from-indigo-600 to-purple-500 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <Sparkles size={20} />
+      {/* 1. Header Bar (多分辨率与移动端自适应) */}
+      <header className="h-13 sm:h-14 bg-white border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between shadow-xs z-20 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-tr from-indigo-600 to-purple-500 rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
+            <Sparkles size={16} className="sm:w-[18px] sm:h-[18px]" />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-slate-800 leading-tight flex items-center gap-2">
-              <span>拼豆图纸工坊</span>
-              <span className="text-[11px] font-normal px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md">
+          <div className="min-w-0">
+            <h1 className="text-xs sm:text-base font-bold text-slate-800 leading-tight flex items-center gap-1 sm:gap-2">
+              <span className="truncate">拼豆图纸工坊</span>
+              <span className="hidden sm:inline text-[10px] font-normal px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-md">
                 PixelBead Studio
               </span>
             </h1>
-            <p className="text-[11px] text-slate-400">支持自定义拼豆板 · 拼板分割线与分板制作 · 真实色卡精确匹配</p>
+            <p className="hidden md:block text-[11px] text-slate-400 truncate">
+              支持自定义拼豆板 · VPS 云端生图 · 真实色卡匹配
+            </p>
           </div>
         </div>
 
         {/* Header Right Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+          {/* 渲染节点状态指示与切换 */}
+          <button
+            onClick={() => setRenderBackend(renderBackend === 'vps' ? 'local' : 'vps')}
+            title="点击切换渲染引擎节点"
+            className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg border text-[11px] sm:text-xs font-medium transition cursor-pointer ${
+              renderBackend === 'vps'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100'
+            }`}
+          >
+            {renderBackend === 'vps' ? <Server size={13} /> : <Laptop size={13} />}
+            <span className="hidden xs:inline">
+              {renderBackend === 'vps' ? (vpsOnline ? 'VPS云端' : 'VPS连接中') : '本地渲染'}
+            </span>
+            <span className="xs:hidden">
+              {renderBackend === 'vps' ? '云端' : '本地'}
+            </span>
+            {isProcessing && <Loader2 size={12} className="animate-spin ml-0.5" />}
+          </button>
+
+          {/* 桌面端总规格信息条 */}
           {quantizeResult && (
-            <div className="hidden lg:flex items-center gap-3 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 mr-2">
+            <div className="hidden xl:flex items-center gap-3 text-xs bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200">
               <span className="text-slate-500">
                 总规格: <strong>{quantizeResult.width}×{quantizeResult.height}</strong> 格
               </span>
@@ -340,20 +420,40 @@ export const App: React.FC = () => {
           <button
             onClick={() => setIsExportOpen(true)}
             disabled={!quantizeResult}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-1 sm:gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] sm:text-xs font-semibold px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg shadow-sm transition disabled:opacity-50 cursor-pointer"
           >
-            <Download size={15} />
-            <span>导出制作图纸</span>
+            <Download size={14} />
+            <span>导出图纸</span>
           </button>
         </div>
       </header>
 
       {/* 2. Main Workspace Layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Controls & Options */}
-        <aside className="w-84 flex-shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-y-auto">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left Sidebar: Controls & Options (大屏固定侧边栏 / 移动端弹窗抽屉) */}
+        <aside
+          className={`
+            ${mobileTab === 'controls' ? 'fixed inset-0 z-40 bg-white flex flex-col pt-0 pb-16' : 'hidden'}
+            lg:flex lg:static lg:w-80 xl:w-88 flex-shrink-0 bg-white border-r border-slate-200 flex-col h-full overflow-y-auto z-20
+          `}
+        >
+          {/* Mobile Drawer Header */}
+          <div className="lg:hidden px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between sticky top-0 z-10 shrink-0">
+            <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
+              <Sliders size={16} className="text-indigo-600" />
+              <span>图纸与色彩参数</span>
+            </span>
+            <button
+              onClick={() => setMobileTab('canvas')}
+              className="px-3 py-1 bg-indigo-600 text-white text-xs font-semibold rounded-lg shadow-xs cursor-pointer flex items-center gap-1"
+            >
+              <Check size={14} />
+              <span>完成并查看</span>
+            </button>
+          </div>
+
           {/* Section: Upload & Samples */}
-          <div className="p-4 border-b border-slate-100 space-y-3">
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-3">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <ImageIcon size={14} className="text-indigo-500" />
               图片来源
@@ -380,22 +480,31 @@ export const App: React.FC = () => {
 
             {/* Quick Sample Selector */}
             <div className="flex items-center justify-between pt-1">
-              <span className="text-[11px] text-slate-400">试试内置示例:</span>
+              <span className="text-[11px] text-slate-400">内置示例:</span>
               <div className="flex gap-1.5">
                 <button
-                  onClick={() => loadImageUrl(generateSampleMushroom())}
+                  onClick={() => {
+                    loadImageUrl(generateSampleMushroom());
+                    if (window.innerWidth < 1024) setMobileTab('canvas');
+                  }}
                   className="px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded text-[11px] font-medium text-slate-600 border border-slate-200 transition cursor-pointer"
                 >
                   🍄 蘑菇
                 </button>
                 <button
-                  onClick={() => loadImageUrl(generateSamplePikachu())}
+                  onClick={() => {
+                    loadImageUrl(generateSamplePikachu());
+                    if (window.innerWidth < 1024) setMobileTab('canvas');
+                  }}
                   className="px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded text-[11px] font-medium text-slate-600 border border-slate-200 transition cursor-pointer"
                 >
                   ⚡ 皮卡丘
                 </button>
                 <button
-                  onClick={() => loadImageUrl(generateSampleHeart())}
+                  onClick={() => {
+                    loadImageUrl(generateSampleHeart());
+                    if (window.innerWidth < 1024) setMobileTab('canvas');
+                  }}
                   className="px-2 py-1 bg-slate-50 hover:bg-slate-100 rounded text-[11px] font-medium text-slate-600 border border-slate-200 transition cursor-pointer"
                 >
                   ❤️ 爱心
@@ -405,7 +514,7 @@ export const App: React.FC = () => {
           </div>
 
           {/* Section: Pegboard & Total Size (单板规格与拼板尺寸) */}
-          <div className="p-4 border-b border-slate-100 space-y-3.5">
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-3.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
                 <Grid size={14} className="text-indigo-500" />
@@ -476,7 +585,7 @@ export const App: React.FC = () => {
             )}
 
             {/* Pegboard List Selector */}
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5">
+            <div className="space-y-1.5 max-h-44 overflow-y-auto pr-0.5">
               {pegboardList.map(board => {
                 const isSelected = activeBoardId === board.id;
                 return (
@@ -683,7 +792,7 @@ export const App: React.FC = () => {
           </div>
 
           {/* Section: Brand & Palette */}
-          <div className="p-4 border-b border-slate-100 space-y-3">
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-3">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <Palette size={14} className="text-indigo-500" />
               拼豆品牌色卡
@@ -698,8 +807,8 @@ export const App: React.FC = () => {
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <div className="font-bold text-xs">漫拼 Mard</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">国内主流全色卡(60色)</div>
+                <div className="font-semibold text-xs">漫拼 (Mard)</div>
+                <div className="text-[10px] text-slate-400">主流高频 60 色</div>
               </button>
 
               <button
@@ -710,8 +819,8 @@ export const App: React.FC = () => {
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <div className="font-bold text-xs">Perler</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">国际经典流行色(37色)</div>
+                <div className="font-semibold text-xs">Perler</div>
+                <div className="text-[10px] text-slate-400">欧美经典 37 色</div>
               </button>
 
               <button
@@ -722,8 +831,8 @@ export const App: React.FC = () => {
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <div className="font-bold text-xs">Artkal</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">高频纯正色卡(24色)</div>
+                <div className="font-semibold text-xs">Artkal</div>
+                <div className="text-[10px] text-slate-400">常用 24 色</div>
               </button>
 
               <button
@@ -734,228 +843,222 @@ export const App: React.FC = () => {
                     : 'border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                <div className="font-bold text-xs">全部色系混拼</div>
-                <div className="text-[10px] text-slate-400 mt-0.5">多品牌联合匹配(121色)</div>
+                <div className="font-semibold text-xs">多品牌混拼</div>
+                <div className="text-[10px] text-slate-400">120+ 色联合匹配</div>
               </button>
             </div>
 
-            {/* Limit max colors */}
+            {/* Max Colors Restriction */}
             <div className="pt-2">
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-slate-600 font-medium">限制最大颜色数</span>
-                <span className="font-mono text-indigo-600 font-bold">
-                  {maxColors === 0 ? '不限制' : `${maxColors} 种`}
+              <div className="flex items-center justify-between text-xs mb-1.5">
+                <span className="text-slate-600 font-medium">限制最大颜色种类:</span>
+                <span className="text-indigo-600 font-mono font-bold">
+                  {maxColors === 0 ? '不限制 (全色库)' : `${maxColors} 色`}
                 </span>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="48"
-                step="4"
-                value={maxColors}
-                onChange={e => setMaxColors(Number(e.target.value))}
-                className="w-full accent-indigo-600 cursor-pointer"
-              />
-              <span className="text-[10px] text-slate-400">限制色种可大幅减少所需色号，降低新手拼装难度</span>
+              <div className="flex gap-1.5">
+                {[0, 12, 18, 24, 36].map(num => (
+                  <button
+                    key={num}
+                    onClick={() => setMaxColors(num)}
+                    className={`flex-1 py-1 text-[11px] rounded border font-medium cursor-pointer transition ${
+                      maxColors === num
+                        ? 'bg-indigo-600 text-white border-indigo-600 font-bold'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {num === 0 ? '全色' : `${num}色`}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Section: Adjustments & Quantize Engine */}
-          <div className="p-4 border-b border-slate-100 space-y-3">
+          {/* Section: Algorithm & Image Filters */}
+          <div className="p-3.5 sm:p-4 border-b border-slate-100 space-y-3.5">
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
               <Sliders size={14} className="text-indigo-500" />
-              图像与算法调节
+              色彩与算法参数
             </span>
 
             {/* Dither & Background Removal */}
-            <div className="space-y-2 pt-1">
-              <label className="flex items-center justify-between text-xs text-slate-600 cursor-pointer">
-                <span>Floyd-Steinberg 误差抖动</span>
+            <div className="space-y-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div className="text-xs text-slate-700">
+                  <div className="font-semibold">Floyd-Steinberg 误差抖动</div>
+                  <div className="text-[10px] text-slate-400">更平滑的渐变色过渡，更具艺术质感</div>
+                </div>
                 <input
                   type="checkbox"
                   checked={dither}
                   onChange={e => setDither(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                 />
               </label>
 
-              <label className="flex items-center justify-between text-xs text-slate-600 cursor-pointer">
-                <span>扣除纯白底色 (透明背景)</span>
-                <input
-                  type="checkbox"
-                  checked={removeBg}
-                  onChange={e => setRemoveBg(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                />
-              </label>
-
-              {removeBg && (
-                <div className="pl-2 pt-1">
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                    <span>白色容差阈值</span>
-                    <span>{bgTolerance}%</span>
+              <div className="border-t border-slate-200/60 pt-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="text-xs text-slate-700">
+                    <div className="font-semibold">智能去除纯白/浅色背景</div>
+                    <div className="text-[10px] text-slate-400">将白色底图镂空，省去背景豆子</div>
                   </div>
                   <input
-                    type="range"
-                    min="1"
-                    max="40"
-                    value={bgTolerance}
-                    onChange={e => setBgTolerance(Number(e.target.value))}
-                    className="w-full accent-indigo-600"
+                    type="checkbox"
+                    checked={removeBg}
+                    onChange={e => setRemoveBg(e.target.checked)}
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-4 w-4"
                   />
-                </div>
-              )}
+                </label>
+
+                {removeBg && (
+                  <div className="mt-2 pt-2 border-t border-slate-100">
+                    <div className="flex justify-between text-[11px] text-slate-500 mb-1">
+                      <span>去底容差阈值:</span>
+                      <span className="font-mono">{bgTolerance}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="40"
+                      value={bgTolerance}
+                      onChange={e => setBgTolerance(Number(e.target.value))}
+                      className="w-full accent-indigo-600 cursor-pointer"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Brightness, Contrast, Saturation */}
-            <div className="space-y-2.5 pt-2 border-t border-slate-100">
+            <div className="space-y-2.5 text-xs">
               <div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                  <span>亮度调节</span>
-                  <span className="font-mono">{brightness > 0 ? `+${brightness}` : brightness}</span>
+                <div className="flex justify-between text-slate-600 mb-1">
+                  <span>画面亮度:</span>
+                  <span className="font-mono text-indigo-600">{brightness > 0 ? `+${brightness}` : brightness}</span>
                 </div>
                 <input
                   type="range"
-                  min="-50"
-                  max="50"
+                  min="-60"
+                  max="60"
                   value={brightness}
                   onChange={e => setBrightness(Number(e.target.value))}
-                  className="w-full accent-indigo-600"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                  <span>对比度调节</span>
-                  <span className="font-mono">{contrast > 0 ? `+${contrast}` : contrast}</span>
+                <div className="flex justify-between text-slate-600 mb-1">
+                  <span>对比度:</span>
+                  <span className="font-mono text-indigo-600">{contrast > 0 ? `+${contrast}` : contrast}</span>
                 </div>
                 <input
                   type="range"
-                  min="-50"
-                  max="50"
+                  min="-60"
+                  max="60"
                   value={contrast}
                   onChange={e => setContrast(Number(e.target.value))}
-                  className="w-full accent-indigo-600"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between text-[11px] text-slate-500 mb-1">
-                  <span>色彩饱和度</span>
-                  <span className="font-mono">{saturation > 0 ? `+${saturation}` : saturation}</span>
+                <div className="flex justify-between text-slate-600 mb-1">
+                  <span>色彩饱和度:</span>
+                  <span className="font-mono text-indigo-600">{saturation > 0 ? `+${saturation}` : saturation}</span>
                 </div>
                 <input
                   type="range"
-                  min="-50"
-                  max="50"
+                  min="-60"
+                  max="60"
                   value={saturation}
                   onChange={e => setSaturation(Number(e.target.value))}
-                  className="w-full accent-indigo-600"
+                  className="w-full accent-indigo-600 cursor-pointer"
                 />
               </div>
-
-              {(brightness !== 0 || contrast !== 0 || saturation !== 0) && (
-                <button
-                  onClick={() => {
-                    setBrightness(0);
-                    setContrast(0);
-                    setSaturation(0);
-                  }}
-                  className="text-[11px] text-indigo-600 hover:text-indigo-700 underline block cursor-pointer"
-                >
-                  重置色彩调节
-                </button>
-              )}
             </div>
           </div>
         </aside>
 
-        {/* Center: Pattern Canvas Stage */}
-        <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-          {/* Top Canvas View Toolbar */}
-          <div className="h-11 bg-white border-b border-slate-200 px-4 flex items-center justify-between text-xs text-slate-600 z-10 shadow-xs">
-            <div className="flex items-center gap-1.5">
-              {/* Style switch */}
-              <div className="bg-slate-100 p-0.5 rounded-lg flex items-center mr-2">
+        {/* Center Canvas Area (在手机与桌面端均为主舞台) */}
+        <main className="flex-1 flex flex-col min-w-0 bg-slate-200/60 overflow-hidden relative">
+          {/* Canvas Floating Top Tool Bar (移动端横向滑动，防止破框溢出) */}
+          <div className="absolute top-2.5 sm:top-4 left-2.5 sm:left-4 right-2.5 sm:right-auto z-10 overflow-x-auto no-scrollbar py-0.5">
+            <div className="inline-flex items-center gap-2 sm:gap-3 bg-white/95 backdrop-blur-md px-2.5 sm:px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-sm text-xs whitespace-nowrap">
+              {/* View Mode Toggle */}
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-lg text-slate-600 font-medium shrink-0">
                 <button
                   onClick={() => setRenderMode('bead')}
-                  className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                    renderMode === 'bead' ? 'bg-white text-indigo-600 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-700'
+                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md transition cursor-pointer text-[11px] sm:text-xs ${
+                    renderMode === 'bead' ? 'bg-white text-indigo-600 shadow-xs font-bold' : ''
                   }`}
                 >
-                  拟真拼豆
+                  圆孔拼豆
                 </button>
                 <button
                   onClick={() => setRenderMode('flat')}
-                  className={`px-2.5 py-1 rounded-md font-medium transition cursor-pointer ${
-                    renderMode === 'flat' ? 'bg-white text-indigo-600 shadow-xs font-bold' : 'text-slate-500 hover:text-slate-700'
+                  className={`px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-md transition cursor-pointer text-[11px] sm:text-xs ${
+                    renderMode === 'flat' ? 'bg-white text-indigo-600 shadow-xs font-bold' : ''
                   }`}
                 >
-                  平铺方格
+                  平铺格
                 </button>
               </div>
 
-              {/* Toggles */}
-              <button
-                onClick={() => setShowLabels(!showLabels)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                  showLabels ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'border-slate-200 text-slate-600'
-                }`}
-                title="放大至适度时在格子上显示色号 (如 M01)"
-              >
-                <Hash size={13} />
-                <span>色号标注</span>
-              </button>
+              <div className="h-3.5 w-px bg-slate-200 shrink-0" />
 
-              <button
-                onClick={() => setShowGrid(!showGrid)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                  showGrid ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'border-slate-200 text-slate-600'
-                }`}
-                title="开启单元格与 5格/10格 参考线"
-              >
-                <Grid size={13} />
-                <span>基础网格</span>
-              </button>
+              {/* Display Switches */}
+              <label className="flex items-center gap-1 cursor-pointer text-slate-600 select-none text-[11px] sm:text-xs shrink-0">
+                <input
+                  type="checkbox"
+                  checked={showLabels}
+                  onChange={e => setShowLabels(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                />
+                <span>色号</span>
+              </label>
 
-              <button
-                onClick={() => setShowPegboardSeams(!showPegboardSeams)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                  showPegboardSeams ? 'bg-red-50 border-red-200 text-red-700 font-medium' : 'border-slate-200 text-slate-600'
-                }`}
-                title="开启物理拼板接缝红线与拼板编号 (如 板1-1, 板1-2)"
-              >
-                <SplitSquareVertical size={13} />
-                <span>拼板接缝线</span>
-              </button>
+              <label className="flex items-center gap-1 cursor-pointer text-slate-600 select-none text-[11px] sm:text-xs shrink-0">
+                <input
+                  type="checkbox"
+                  checked={showGrid}
+                  onChange={e => setShowGrid(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                />
+                <span>网格</span>
+              </label>
 
-              <button
-                onClick={() => setShowRuler(!showRuler)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                  showRuler ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-medium' : 'border-slate-200 text-slate-600'
-                }`}
-                title="开启顶部与左侧数字标尺"
-              >
-                <Ruler size={13} />
-                <span>坐标标尺</span>
-              </button>
+              <label className="flex items-center gap-1 cursor-pointer text-slate-600 select-none text-[11px] sm:text-xs shrink-0">
+                <input
+                  type="checkbox"
+                  checked={showPegboardSeams}
+                  onChange={e => setShowPegboardSeams(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                />
+                <span className="text-red-600 font-medium">拼板线</span>
+              </label>
+
+              <label className="flex items-center gap-1 cursor-pointer text-slate-600 select-none text-[11px] sm:text-xs shrink-0">
+                <input
+                  type="checkbox"
+                  checked={showRuler}
+                  onChange={e => setShowRuler(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                />
+                <span>标尺</span>
+              </label>
             </div>
-
-            {/* Toggle Stats Panel Button */}
-            <button
-              onClick={() => setShowStats(!showStats)}
-              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
-                showStats ? 'bg-slate-100 border-slate-300 text-slate-800 font-medium' : 'border-slate-200 text-slate-500'
-              }`}
-            >
-              <Layers size={14} />
-              <span>用料清单</span>
-              {showStats ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            </button>
           </div>
 
-          {/* Interactive Canvas */}
-          <div className="flex-1 w-full h-full relative">
+          {/* VPS 缓冲与加载提示浮条 */}
+          {isProcessing && (
+            <div className="absolute top-12 sm:top-4 right-2.5 sm:right-4 z-10 bg-indigo-900/90 text-white backdrop-blur-md px-3 py-1 sm:py-1.5 rounded-xl border border-indigo-700/60 shadow-md flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
+              <Loader2 size={13} className="animate-spin text-indigo-300 shrink-0" />
+              <span>{processingTip || 'VPS 计算中...'}</span>
+            </div>
+          )}
+
+          {/* Interactive Pattern Canvas */}
+          <div className="flex-1 w-full h-full pb-14 lg:pb-0">
             {quantizeResult ? (
               <PatternCanvas
                 result={quantizeResult}
@@ -970,25 +1073,83 @@ export const App: React.FC = () => {
                 pegboardHeight={currentBoard.height}
               />
             ) : (
-              <div className="flex items-center justify-center h-full text-slate-400 text-sm">
-                加载图像中...
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 gap-2">
+                <Loader2 size={32} className="animate-spin text-indigo-500" />
+                <span className="text-xs">正在渲染拼豆图纸，请稍候...</span>
               </div>
             )}
           </div>
         </main>
 
-        {/* Right Sidebar: Material Stats Panel */}
-        {showStats && quantizeResult && (
-          <aside className="w-80 flex-shrink-0 h-full">
+        {/* Right Sidebar: Color Stats & Materials (大屏固定侧边栏 / 移动端弹窗抽屉) */}
+        {quantizeResult && (
+          <aside
+            className={`
+              ${mobileTab === 'stats' ? 'fixed inset-0 z-40 bg-white flex flex-col pt-0 pb-16' : 'hidden'}
+              lg:flex lg:static lg:w-80 xl:w-88 flex-shrink-0 bg-white border-l border-slate-200 flex-col h-full overflow-hidden shadow-xs z-20
+            `}
+          >
             <StatsPanel
               stats={quantizeResult.stats}
               totalBeads={quantizeResult.totalBeads}
               highlightColor={highlightColor}
-              onSelectColor={setHighlightColor}
+              onSelectColor={color => {
+                setHighlightColor(color);
+                // 手机端选中高亮色号后自动切回画板查看高亮区域
+                if (window.innerWidth < 1024) {
+                  setMobileTab('canvas');
+                }
+              }}
+              onClose={() => setMobileTab('canvas')}
             />
           </aside>
         )}
       </div>
+
+      {/* 3. Mobile Bottom Navigation Bar (仅在移动端小屏显示) */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-14 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around z-30 px-2 pb-[env(safe-area-inset-bottom)]">
+        <button
+          onClick={() => setMobileTab('canvas')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
+            mobileTab === 'canvas' ? 'text-indigo-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <Grid size={18} />
+          <span className="text-[10px] mt-0.5">图纸画板</span>
+        </button>
+
+        <button
+          onClick={() => setMobileTab('controls')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
+            mobileTab === 'controls' ? 'text-indigo-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <Sliders size={18} />
+          <span className="text-[10px] mt-0.5">参数调节</span>
+        </button>
+
+        <button
+          onClick={() => setMobileTab('stats')}
+          className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer relative ${
+            mobileTab === 'stats' ? 'text-indigo-600 font-bold' : 'text-slate-500'
+          }`}
+        >
+          <ListFilter size={18} />
+          <span className="text-[10px] mt-0.5">用料清单</span>
+          {quantizeResult && (
+            <span className="absolute top-1 right-1/4 w-2 h-2 bg-indigo-600 rounded-full" />
+          )}
+        </button>
+
+        <button
+          onClick={() => setIsExportOpen(true)}
+          disabled={!quantizeResult}
+          className="flex flex-col items-center justify-center flex-1 py-1 text-slate-700 transition cursor-pointer disabled:opacity-40"
+        >
+          <Download size={18} className="text-indigo-600" />
+          <span className="text-[10px] mt-0.5 font-medium">导出图纸</span>
+        </button>
+      </nav>
 
       {/* Export Modal */}
       {quantizeResult && (
@@ -998,6 +1159,7 @@ export const App: React.FC = () => {
           result={quantizeResult}
           pegboardWidth={currentBoard.width}
           pegboardHeight={currentBoard.height}
+          vpsAvailable={vpsOnline}
         />
       )}
     </div>

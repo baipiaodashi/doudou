@@ -38,7 +38,26 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragStart, setDragStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Hover state
+  // Touch handling state
+  const touchStateRef = useRef<{
+    startDistance: number;
+    startScale: number;
+    startCenter: { x: number; y: number };
+    startOffset: { x: number; y: number };
+    isPinching: boolean;
+    touchStartTime: number;
+    startPos: { x: number; y: number };
+  }>({
+    startDistance: 0,
+    startScale: 1,
+    startCenter: { x: 0, y: 0 },
+    startOffset: { x: 0, y: 0 },
+    isPinching: false,
+    touchStartTime: 0,
+    startPos: { x: 0, y: 0 }
+  });
+
+  // Hover state (mouse or single touch inspect)
   const [hoveredCell, setHoveredCell] = useState<{
     x: number;
     y: number;
@@ -54,24 +73,44 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
   const { width, height, grid } = result;
 
   // Auto fit canvas on load or dimension change
-  useEffect(() => {
+  const resetView = useCallback(() => {
     if (!containerRef.current) return;
     const { clientWidth, clientHeight } = containerRef.current;
+    if (clientWidth === 0 || clientHeight === 0) return;
+
     const contentW = width * baseCellSize + rulerSize + 40;
     const contentH = height * baseCellSize + rulerSize + 40;
 
     const initialScale = Math.min(
-      Math.max(0.4, (clientWidth - 60) / contentW),
-      Math.max(0.4, (clientHeight - 60) / contentH),
+      Math.max(0.2, (clientWidth - 30) / contentW),
+      Math.max(0.2, (clientHeight - 30) / contentH),
       1.5
     );
 
     setScale(initialScale);
     setOffset({
-      x: Math.max(20, (clientWidth - contentW * initialScale) / 2),
-      y: Math.max(20, (clientHeight - contentH * initialScale) / 2)
+      x: Math.max(10, (clientWidth - contentW * initialScale) / 2),
+      y: Math.max(10, (clientHeight - contentH * initialScale) / 2)
     });
-  }, [width, height, showRuler]);
+  }, [width, height, rulerSize]);
+
+  useEffect(() => {
+    resetView();
+  }, [resetView]);
+
+  // Window resize observer to adapt DPR and viewport changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      // Repaint on container resize
+      draw();
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, []);
 
   // Render loop
   const draw = useCallback(() => {
@@ -80,11 +119,17 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    // Retina & High-PPI Screen adaptation
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     const rect = canvas.getBoundingClientRect();
-    if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
+    if (rect.width === 0 || rect.height === 0) return;
+
+    const targetWidth = Math.round(rect.width * dpr);
+    const targetHeight = Math.round(rect.height * dpr);
+
+    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
     }
 
     ctx.save();
@@ -107,7 +152,7 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       ctx.fillRect(0, startY, rulerSize, gridH);
 
       ctx.fillStyle = '#64748B';
-      ctx.font = '10px "Segoe UI", sans-serif';
+      ctx.font = '10px "Segoe UI", system-ui, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -371,7 +416,7 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     const mouseY = e.clientY - rect.top;
 
     const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-    const newScale = Math.min(Math.max(0.2, scale * zoomFactor), 8);
+    const newScale = Math.min(Math.max(0.15, scale * zoomFactor), 8);
 
     // Keep point under cursor invariant
     const newOffsetX = mouseX - (mouseX - offset.x) * (newScale / scale);
@@ -381,7 +426,7 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     setOffset({ x: newOffsetX, y: newOffsetY });
   };
 
-  // Drag pan
+  // Drag pan (Mouse)
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
@@ -405,7 +450,6 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Convert screen coordinates to grid coordinates
     const gridPixelX = (mouseX - offset.x) / scale - rulerSize;
     const gridPixelY = (mouseY - offset.y) / scale - rulerSize;
 
@@ -437,7 +481,6 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
 
   const handleClick = () => {
     if (hoveredCell && hoveredCell.color && onSelectColor) {
-      // Toggle or select color
       if (highlightColor && highlightColor.code === hoveredCell.color.code) {
         onSelectColor(null);
       } else {
@@ -446,28 +489,130 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     }
   };
 
-  const resetView = () => {
-    if (!containerRef.current) return;
-    const { clientWidth, clientHeight } = containerRef.current;
-    const contentW = width * baseCellSize + rulerSize + 40;
-    const contentH = height * baseCellSize + rulerSize + 40;
-    const initialScale = Math.min(
-      Math.max(0.4, (clientWidth - 60) / contentW),
-      Math.max(0.4, (clientHeight - 60) / contentH),
-      1.5
-    );
-    setScale(initialScale);
-    setOffset({
-      x: Math.max(20, (clientWidth - contentW * initialScale) / 2),
-      y: Math.max(20, (clientHeight - contentH * initialScale) / 2)
-    });
+  // -------------------------------------------------------------
+  // 触摸手势事件处理 (移动端单指平移 + 双指捏合缩放 + 轻触拾色)
+  // -------------------------------------------------------------
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (e.touches.length === 1) {
+      // 单指开始拖拽或轻触
+      const touch = e.touches[0];
+      touchStateRef.current = {
+        ...touchStateRef.current,
+        isPinching: false,
+        touchStartTime: Date.now(),
+        startPos: { x: touch.clientX, y: touch.clientY }
+      };
+      setIsDragging(true);
+      setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
+    } else if (e.touches.length === 2) {
+      // 双指开始捏合缩放
+      setIsDragging(false);
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      const rect = canvas.getBoundingClientRect();
+      const centerX = (t1.clientX + t2.clientX) / 2 - rect.left;
+      const centerY = (t1.clientY + t2.clientY) / 2 - rect.top;
+
+      touchStateRef.current = {
+        ...touchStateRef.current,
+        isPinching: true,
+        startDistance: distance,
+        startScale: scale,
+        startCenter: { x: centerX, y: centerY },
+        startOffset: { ...offset }
+      };
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    if (e.touches.length === 1 && !touchStateRef.current.isPinching) {
+      // 单指拖动画布
+      const touch = e.touches[0];
+      setOffset({
+        x: touch.clientX - dragStart.x,
+        y: touch.clientY - dragStart.y
+      });
+      setHoveredCell(null);
+    } else if (e.touches.length === 2) {
+      // 双指捏合平滑缩放
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
+      if (touchStateRef.current.startDistance <= 0) return;
+
+      const factor = distance / touchStateRef.current.startDistance;
+      const newScale = Math.min(Math.max(0.15, touchStateRef.current.startScale * factor), 8);
+
+      const center = touchStateRef.current.startCenter;
+      const startOff = touchStateRef.current.startOffset;
+
+      const newOffsetX = center.x - (center.x - startOff.x) * (newScale / touchStateRef.current.startScale);
+      const newOffsetY = center.y - (center.y - startOff.y) * (newScale / touchStateRef.current.startScale);
+
+      setScale(newScale);
+      setOffset({ x: newOffsetX, y: newOffsetY });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // 检测轻触拾色 (Tap detection)
+    if (!touchStateRef.current.isPinching && e.changedTouches.length > 0) {
+      const touch = e.changedTouches[0];
+      const duration = Date.now() - touchStateRef.current.touchStartTime;
+      const moveDist = Math.hypot(
+        touch.clientX - touchStateRef.current.startPos.x,
+        touch.clientY - touchStateRef.current.startPos.y
+      );
+
+      if (duration < 300 && moveDist < 8) {
+        // 判定为单指点击
+        const rect = canvas.getBoundingClientRect();
+        const touchX = touch.clientX - rect.left;
+        const touchY = touch.clientY - rect.top;
+
+        const gridPixelX = (touchX - offset.x) / scale - rulerSize;
+        const gridPixelY = (touchY - offset.y) / scale - rulerSize;
+
+        const cellX = Math.floor(gridPixelX / baseCellSize);
+        const cellY = Math.floor(gridPixelY / baseCellSize);
+
+        if (cellX >= 0 && cellX < width && cellY >= 0 && cellY < height) {
+          const color = grid[cellY][cellX];
+          if (color && onSelectColor) {
+            if (highlightColor && highlightColor.code === color.code) {
+              onSelectColor(null);
+            } else {
+              onSelectColor(color);
+            }
+          }
+        }
+      }
+    }
+
+    if (e.touches.length === 0) {
+      setIsDragging(false);
+      touchStateRef.current.isPinching = false;
+    }
   };
 
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden bg-slate-100 select-none">
+    <div
+      ref={containerRef}
+      className="relative w-full h-full overflow-hidden bg-slate-100 select-none touch-none"
+    >
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing block"
+        className="w-full h-full cursor-grab active:cursor-grabbing block touch-none"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -477,80 +622,60 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
           setHoveredCell(null);
         }}
         onClick={handleClick}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={() => {
+          setIsDragging(false);
+          touchStateRef.current.isPinching = false;
+        }}
       />
 
-      {/* Floating Canvas Controls */}
-      <div className="absolute bottom-5 left-5 bg-white/90 backdrop-blur shadow-lg rounded-xl border border-slate-200/80 p-1.5 flex items-center gap-1.5 z-10">
+      {/* Floating Canvas Controls (适应手机屏幕底部) */}
+      <div className="absolute bottom-20 md:bottom-5 left-4 bg-white/95 backdrop-blur-md shadow-lg rounded-xl border border-slate-200/80 p-1 flex items-center gap-1 z-10">
         <button
           onClick={() => setScale(s => Math.min(8, s * 1.25))}
           title="放大"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition"
+          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
         >
-          <ZoomIn size={18} />
+          <ZoomIn size={16} />
         </button>
-        <span className="text-xs font-semibold font-mono text-slate-600 px-1 min-w-[42px] text-center">
+        <span className="text-[11px] font-semibold font-mono text-slate-600 px-1 min-w-[38px] text-center">
           {Math.round(scale * 100)}%
         </span>
         <button
-          onClick={() => setScale(s => Math.max(0.2, s * 0.8))}
+          onClick={() => setScale(s => Math.max(0.15, s * 0.8))}
           title="缩小"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition"
+          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
         >
-          <ZoomOut size={18} />
+          <ZoomOut size={16} />
         </button>
-        <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
+        <div className="w-[1px] h-3.5 bg-slate-200 mx-0.5" />
         <button
           onClick={resetView}
-          title="居中适应视图"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition"
+          title="居中重置视图"
+          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
         >
-          <RotateCcw size={18} />
+          <RotateCcw size={16} />
         </button>
       </div>
 
       {/* Active Highlight Banner */}
       {highlightColor && (
-        <div className="absolute top-4 left-4 bg-amber-500 text-white shadow-md rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-2 z-10">
+        <div className="absolute top-16 md:top-4 left-4 max-w-[85vw] bg-amber-500 text-white shadow-md rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-2 z-10">
           <div
-            className="w-3.5 h-3.5 rounded-full border border-white/60 shadow-sm"
+            className="w-3.5 h-3.5 rounded-full border border-white/60 shadow-sm shrink-0"
             style={{ backgroundColor: highlightColor.hex }}
           />
-          <span>正在高亮色号：<strong>{highlightColor.code} - {highlightColor.name}</strong></span>
+          <span className="truncate">
+            高亮: <strong>{highlightColor.code} - {highlightColor.name}</strong>
+          </span>
           <button
             onClick={() => onSelectColor?.(null)}
-            className="ml-2 hover:bg-amber-600 px-1.5 py-0.5 rounded text-[11px] font-bold"
+            className="ml-auto bg-amber-600 hover:bg-amber-700 px-1.5 py-0.5 rounded text-[10px] shrink-0 cursor-pointer"
           >
-            取消
+            清除
           </button>
-        </div>
-      )}
-
-      {/* Hover Cell Tooltip */}
-      {hoveredCell && hoveredCell.color && (
-        <div
-          className="fixed pointer-events-none z-50 bg-slate-900/90 text-white backdrop-blur-md px-3 py-2 rounded-lg shadow-xl text-xs space-y-1 transform -translate-x-1/2 -translate-y-full mb-3"
-          style={{
-            left: hoveredCell.screenX,
-            top: hoveredCell.screenY - 10
-          }}
-        >
-          <div className="flex items-center gap-2">
-            <span
-              className="w-3.5 h-3.5 rounded-full border border-white/40 shadow-inner flex-shrink-0"
-              style={{ backgroundColor: hoveredCell.color.hex }}
-            />
-            <span className="font-bold text-sm tracking-wide">{hoveredCell.color.code}</span>
-            <span className="text-slate-300">({hoveredCell.color.name})</span>
-          </div>
-          <div className="text-[11px] text-slate-400 flex items-center justify-between gap-3">
-            <span>坐标: ({hoveredCell.x + 1}, {hoveredCell.y + 1})</span>
-            {pegboardWidth > 0 && pegboardHeight > 0 && (
-              <span className="text-amber-400 font-semibold">
-                所属拼板: {hoveredCell.boardRow}-{hoveredCell.boardCol}
-              </span>
-            )}
-            <span>品牌: {hoveredCell.color.brandName}</span>
-          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,20 @@
 services:
-  pixel-beads:
+  # VPS 图像量化与打印级图纸渲染服务
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: pixel-bead-api:latest
+    container_name: pixel-bead-api
+    restart: unless-stopped
+    environment:
+      - PORT=3001
+      - MAX_CONCURRENT_TASKS=1  # 针对弱性能 VPS 限制单核任务数，保护系统稳定性
+    networks:
+      - default
+
+  # Nginx 前端静态托管与 API 反向代理
+  web:
     build:
       context: .
       dockerfile: Dockerfile
@@ -7,11 +22,14 @@ services:
     container_name: pixel-bead-studio
     ports:
       - "8080:80"
+    depends_on:
+      - api
     networks:
       - default
       - onenav_default
     restart: unless-stopped
 
 networks:
+  default:
   onenav_default:
     external: true

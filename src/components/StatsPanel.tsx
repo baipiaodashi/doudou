@@ -2,20 +2,22 @@ import React, { useState } from 'react';
 import type { BeadCount } from '../utils/quantize';
 import type { BeadColor } from '../data/palettes';
 import { exportCsvStats } from '../utils/exportPattern';
-import { Download, Search, Check, Copy } from 'lucide-react';
+import { Download, Search, Check, Copy, X } from 'lucide-react';
 
 interface StatsPanelProps {
   stats: BeadCount[];
   totalBeads: number;
   highlightColor: BeadColor | null;
   onSelectColor: (color: BeadColor | null) => void;
+  onClose?: () => void;
 }
 
 export const StatsPanel: React.FC<StatsPanelProps> = ({
   stats,
   totalBeads,
   highlightColor,
-  onSelectColor
+  onSelectColor,
+  onClose
 }) => {
   const [search, setSearch] = useState('');
   const [copied, setCopied] = useState(false);
@@ -37,17 +39,17 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-slate-200 shadow-sm">
+    <div className="flex flex-col h-full bg-white border-l border-slate-200 shadow-sm w-full">
       {/* Header */}
-      <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+      <div className="p-3.5 sm:p-4 border-b border-slate-100 flex items-center justify-between shrink-0">
         <div>
-          <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-1.5 sm:gap-2">
             <span>用料统计清单</span>
-            <span className="text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-0.5 rounded-full border border-indigo-100">
+            <span className="text-[11px] sm:text-xs bg-indigo-50 text-indigo-600 font-semibold px-2 py-0.5 rounded-full border border-indigo-100">
               {stats.length} 种颜色
             </span>
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">
             共需 <strong>{totalBeads.toLocaleString()}</strong> 颗拼豆
           </p>
         </div>
@@ -56,7 +58,7 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
           <button
             onClick={handleCopySummary}
             title="复制清单文本"
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition text-xs flex items-center gap-1 border border-slate-200"
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition text-xs flex items-center gap-1 border border-slate-200 cursor-pointer"
           >
             {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
             <span className="hidden sm:inline">{copied ? '已复制' : '复制'}</span>
@@ -64,16 +66,25 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
           <button
             onClick={() => exportCsvStats(stats, totalBeads)}
             title="导出 CSV 表格"
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition text-xs flex items-center gap-1 border border-slate-200"
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition text-xs flex items-center gap-1 border border-slate-200 cursor-pointer"
           >
             <Download size={14} />
             <span className="hidden sm:inline">导出CSV</span>
           </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="关闭面板"
+              className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+          )}
         </div>
       </div>
 
       {/* Search Input */}
-      <div className="px-4 py-2 border-b border-slate-100 bg-slate-50/50">
+      <div className="px-3.5 py-2 border-b border-slate-100 bg-slate-50/50 shrink-0">
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -98,59 +109,36 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
               <div
                 key={item.color.code}
                 onClick={() => onSelectColor(isSelected ? null : item.color)}
-                className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition select-none ${
+                className={`flex items-center justify-between p-2 rounded-xl transition cursor-pointer text-xs ${
                   isSelected
-                    ? 'bg-amber-50 border border-amber-300 shadow-sm'
+                    ? 'bg-amber-50/80 border border-amber-300 shadow-xs'
                     : 'hover:bg-slate-50 border border-transparent'
                 }`}
               >
-                {/* Color Block */}
-                <div
-                  className="w-7 h-7 rounded-lg border border-black/10 shadow-sm flex-shrink-0 flex items-center justify-center relative"
-                  style={{ backgroundColor: item.color.hex }}
-                >
-                  {isSelected && (
-                    <div className="w-2.5 h-2.5 bg-white rounded-full shadow" />
-                  )}
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className="w-5 h-5 rounded-full border border-black/10 shrink-0 shadow-xs"
+                    style={{ backgroundColor: item.color.hex }}
+                  />
+                  <div className="truncate">
+                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <span className="font-mono text-indigo-700">{item.color.code}</span>
+                      <span className="text-[10px] text-slate-400 font-normal px-1 bg-slate-100 rounded">
+                        {item.color.brandName}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-slate-500 truncate">{item.color.name}</div>
+                  </div>
                 </div>
 
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs font-mono text-slate-800">
-                      {item.color.code}
-                    </span>
-                    <span className="text-xs font-mono font-semibold text-slate-700">
-                      {item.count} 颗
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-400 mt-0.5">
-                    <span className="truncate mr-2">{item.color.name}</span>
-                    <span>{item.percentage.toFixed(1)}%</span>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="w-full h-1 bg-slate-100 rounded-full mt-1.5 overflow-hidden">
-                    <div
-                      className="h-full rounded-full transition-all"
-                      style={{
-                        width: `${Math.max(4, item.percentage)}%`,
-                        backgroundColor: item.color.hex
-                      }}
-                    />
-                  </div>
+                <div className="text-right shrink-0">
+                  <div className="font-mono font-bold text-slate-800">{item.count} 颗</div>
+                  <div className="text-[10px] text-slate-400">{item.percentage.toFixed(1)}%</div>
                 </div>
               </div>
             );
           })
         )}
-      </div>
-
-      {/* Footer Info */}
-      <div className="p-3 bg-slate-50 border-t border-slate-200 text-center">
-        <p className="text-[11px] text-slate-500">
-          💡 点击任意色号可在画布中单独高亮显示
-        </p>
       </div>
     </div>
   );
