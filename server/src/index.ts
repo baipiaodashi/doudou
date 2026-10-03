@@ -86,7 +86,8 @@ app.post('/api/render-export', async (req, res) => {
       return res.status(400).json({ error: 'Missing pattern grid data' });
     }
 
-    const cacheKey = MemoryCache.generateKey(result, options);
+    // Bump this when raster output changes so stale PNGs cannot hide renderer fixes.
+    const cacheKey = MemoryCache.generateKey('export-v2-labels-centered', result, options);
     const cachedPng = exportCache.get(cacheKey);
     if (cachedPng) {
       res.setHeader('Content-Type', 'image/png');

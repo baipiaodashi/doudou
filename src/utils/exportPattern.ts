@@ -170,9 +170,9 @@ export function generatePatternCanvas(
       }
 
       // Draw code label
-      if (showLabels && cellSize >= 18) {
+      if (showLabels && cellSize >= 14) {
         ctx.fillStyle = getContrastTextColor(bead.hex);
-        ctx.font = `bold ${Math.max(8, Math.floor(cellSize * 0.38))}px sans-serif`;
+        ctx.font = `bold ${Math.max(8, Math.floor(cellSize * 0.34))}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);

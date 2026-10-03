@@ -39,6 +39,8 @@ export async function renderPatternImageServer(
     style = 'bead',
     title = '拼豆图纸工坊 (Pixel Bead Pattern)'
   } = options;
+  // JSON clients may send boolean-like values; only an explicit false disables labels.
+  const shouldShowLabels = showLabels !== false;
 
   const { width, height, grid, stats, totalBeads } = result;
 
@@ -169,15 +171,13 @@ export async function renderPatternImageServer(
       }
 
       // Draw Color Code Label
-      if (showLabels && cellSize >= 18) {
+      if (shouldShowLabels && cellSize >= 14) {
         const textColor = getContrastTextColor(bead.hex);
         ctx.fillStyle = textColor;
-        ctx.font = `bold ${Math.max(9, Math.floor(cellSize * 0.32))}px sans-serif`;
+        ctx.font = `bold ${Math.max(8, Math.floor(cellSize * 0.34))}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-
-        const labelY = style === 'flat' ? cellY + cellSize / 2 : cellY + cellSize * 0.28;
-        ctx.fillText(bead.code, cellX + cellSize / 2, labelY);
+        ctx.fillText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);
       }
     }
   }
