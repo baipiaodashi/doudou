@@ -10,6 +10,9 @@ import { StatsPanel } from './components/StatsPanel';
 import { ExportModal } from './components/ExportModal';
 import { generateSampleHeart, generateSampleMushroom, generateSamplePikachu } from './utils/sampleImages';
 import { checkVpsHealth, requestVpsQuantize } from './services/vpsService';
+import { PixelWaveCanvas } from './components/PixelWaveCanvas';
+import { LandingHero } from './components/LandingHero';
+import { UserGuide } from './components/UserGuide';
 import {
   Upload,
   Image as ImageIcon,
@@ -26,10 +29,54 @@ import {
   Laptop,
   Loader2,
   Check,
-  ListFilter
+  ListFilter,
+  ArrowLeft,
+  BookOpen
 } from 'lucide-react';
 
 export const App: React.FC = () => {
+  // 页面全局视图状态: 'home' (首页落地页) | 'guide' (使用指南) | 'studio' (设计工作台)
+  const [pageView, setPageView] = useState<'home' | 'guide' | 'studio'>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hash === '#guide') return 'guide';
+      if (window.location.hash === '#studio') return 'studio';
+    }
+    return 'home';
+  });
+
+  const navigateTo = (view: 'home' | 'guide' | 'studio') => {
+    setPageView(view);
+    if (view === 'home') window.location.hash = '#home';
+    else if (view === 'guide') window.location.hash = '#guide';
+    else if (view === 'studio') window.location.hash = '#studio';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const h = window.location.hash;
+      if (h === '#guide') setPageView('guide');
+      else if (h === '#studio') setPageView('studio');
+      else if (h === '#home' || !h) setPageView('home');
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const handleLandingImageSelected = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        setImageEl(img);
+        setAspectRatio(img.width / img.height);
+        navigateTo('studio');
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Mobile Tab Navigation State
   const [mobileTab, setMobileTab] = useState<'canvas' | 'controls' | 'stats'>('canvas');
 
@@ -349,6 +396,62 @@ export const App: React.FC = () => {
     renderBackend
   ]);
 
+  // 若不在工作台，则渲染首页或指南页面
+  if (pageView !== 'studio') {
+    return (
+      <div className="min-h-screen bg-[#FAF9F5] text-[#1F1E1D] flex flex-col relative selection:bg-[#D97757]/20 font-sans">
+        <PixelWaveCanvas />
+
+        {/* 全局统一顶栏 */}
+        <header className="sticky top-0 z-50 px-4 sm:px-8 py-3.5 backdrop-blur-md bg-[#FAF9F5]/90 border-b border-[#2D2A26]/8 flex items-center justify-between">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigateTo('home')}>
+            <div className="w-8 h-8 rounded-lg bg-[#D97757] flex items-center justify-center text-white shadow-sm font-bold text-base">
+              🧶
+            </div>
+            <span className="font-bold text-lg text-[#1F1E1D] tracking-tight">拼豆灵感工坊</span>
+          </div>
+
+          <nav className="flex items-center gap-6 sm:gap-8 text-sm font-medium text-[#54524E]">
+            <button
+              onClick={() => navigateTo('home')}
+              className={`hover:text-[#D97757] transition-colors cursor-pointer relative py-1 ${pageView === 'home' ? 'text-[#D97757] font-semibold' : ''}`}
+            >
+              首页
+              {pageView === 'home' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D97757] rounded-full" />}
+            </button>
+            <button
+              onClick={() => navigateTo('guide')}
+              className={`hover:text-[#D97757] transition-colors cursor-pointer relative py-1 ${pageView === 'guide' ? 'text-[#D97757] font-semibold' : ''}`}
+            >
+              使用指南
+              {pageView === 'guide' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D97757] rounded-full" />}
+            </button>
+          </nav>
+
+          <button
+            onClick={() => navigateTo('studio')}
+            className="px-4 py-2 rounded-full text-xs sm:text-sm font-semibold text-white bg-[#1F1E1D] hover:bg-[#D97757] transition-all shadow-sm hover:shadow-md cursor-pointer"
+          >
+            进入设计工作台 →
+          </button>
+        </header>
+
+        {/* 核心内容区 */}
+        <main className="relative z-10 flex-1 flex flex-col">
+          {pageView === 'home' ? (
+            <LandingHero
+              onImageSelected={handleLandingImageSelected}
+              onEnterStudio={() => navigateTo('studio')}
+              onOpenGuide={() => navigateTo('guide')}
+            />
+          ) : (
+            <UserGuide onStartCreating={() => navigateTo('studio')} />
+          )}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col h-screen w-screen overflow-hidden bg-slate-100 touch-manipulation"
@@ -358,6 +461,24 @@ export const App: React.FC = () => {
       {/* 1. Header Bar (多分辨率与移动端自适应) */}
       <header className="h-13 sm:h-14 bg-white border-b border-slate-200 px-3 sm:px-5 flex items-center justify-between shadow-xs z-20 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          {/* 返回首页与指南入口 */}
+          <button
+            onClick={() => navigateTo('home')}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-[#D97757] hover:border-[#D97757]/30 bg-slate-50 hover:bg-white text-xs font-medium transition cursor-pointer shrink-0"
+            title="返回工坊首页"
+          >
+            <ArrowLeft size={14} />
+            <span className="hidden sm:inline">首页</span>
+          </button>
+          <button
+            onClick={() => navigateTo('guide')}
+            className="hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:text-[#D97757] hover:border-[#D97757]/30 bg-slate-50 hover:bg-white text-xs font-medium transition cursor-pointer shrink-0"
+            title="查看使用指南"
+          >
+            <BookOpen size={14} />
+            <span>指南</span>
+          </button>
+
           <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-tr from-indigo-600 to-purple-500 rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/20 shrink-0">
             <Sparkles size={16} className="sm:w-[18px] sm:h-[18px]" />
           </div>

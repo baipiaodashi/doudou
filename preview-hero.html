@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>拼豆工坊 - 像素海浪律动 & 使用指南 (Claude 风格)</title>
+  <style>
+    :root {
+      /* Claude 经典温暖大地/米纸配色体系 */
+      --bg-canvas: #FAF9F5;
+      --bg-card: #FFFFFF;
+      --bg-card-subtle: #F4F1EA;
+      --border-light: rgba(45, 42, 38, 0.08);
+      --border-hover: rgba(217, 119, 87, 0.35);
+      
+      /* Claude 标志性陶土橙 (Terracotta) 与大地辅助色 */
+      --claude-coral: #D97757;
+      --claude-coral-dark: #C15F3F;
+      --claude-coral-light: rgba(217, 119, 87, 0.12);
+      --claude-green: #3D6151;
+      --claude-amber: #D48C46;
+      
+      /* 文字阶梯 (温润深炭墨) */
+      --text-heading: #1F1E1D;
+      --text-body: #54524E;
+      --text-muted: #85827C;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-heading);
+      overflow-x: hidden;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* 像素海浪背景画布 */
+    #pixel-wave-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 0;
+      image-rendering: pixelated;
+    }
+
+    /* 柔和透光遮罩 */
+    .bg-vignette {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(circle at 50% 36%, rgba(250, 249, 245, 0.35) 0%, rgba(250, 249, 245, 0.72) 60%, rgba(250, 249, 245, 0.94) 95%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* 内容容器 */
+    .content-container {
+      position: relative;
+      z-index: 2;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* 顶部导航 */
+    header {
+      position: sticky;
+      top: 0;
+      padding: 1.1rem 2.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      background: rgba(250, 249, 245, 0.88);
+      border-bottom: 1px solid var(--border-light);
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-heading);
+      cursor: pointer;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--claude-coral);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1.1rem;
+      box-shadow: 0 2px 8px rgba(217, 119, 87, 0.35);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2.2rem;
+      font-size: 0.92rem;
+      color: var(--text-body);
+      font-weight: 500;
+    }
+
+    .nav-link {
+      cursor: pointer;
+      padding: 0.25rem 0.1rem;
+      position: relative;
+      transition: color 0.2s ease;
+    }
+    .nav-link:hover {
+      color: var(--claude-coral);
+    }
+    .nav-link.active {
+      color: var(--claude-coral);
+      font-weight: 600;
+    }
+    .nav-link.active::after {
+      content: '';
+      position: absolute;
+      bottom: -6px;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--claude-coral);
+      border-radius: 2px;
+    }
+
+    .nav-cta {
+      background: var(--text-heading);
+      color: #FAF9F5;
+      font-size: 0.88rem;
+      font-weight: 550;
+      padding: 0.55rem 1.25rem;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+    }
+    .nav-cta:hover {
+      background: var(--claude-coral);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(217, 119, 87, 0.35);
+    }
+
+    /* 视图切换容器 */
+    .view-section {
+      display: none;
+      animation: fadeIn 0.3s ease forwards;
+    }
+    .view-section.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ================================================= */
+    /* 视图 1: 首页 Hero */
+    /* ================================================= */
+    .hero-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 3.5rem 1.5rem 3rem;
+      text-align: center;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      padding: 0.35rem 0.95rem;
+      border-radius: 9999px;
+      font-size: 0.83rem;
+      font-weight: 550;
+      background: var(--claude-coral-light);
+      border: 1px solid rgba(217, 119, 87, 0.22);
+      color: var(--claude-coral-dark);
+      margin-bottom: 1.5rem;
+    }
+
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--claude-coral);
+      box-shadow: 0 0 6px rgba(217, 119, 87, 0.6);
+      animation: pulse 2.2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-size: clamp(2.3rem, 5.2vw, 3.8rem);
+      font-weight: 780;
+      line-height: 1.18;
+      margin-bottom: 1.35rem;
+      letter-spacing: -0.035em;
+      color: var(--text-heading);
+    }
+
+    .clay-accent {
+      color: var(--claude-coral);
+      display: inline-block;
+    }
+
+    p.subtitle {
+      font-size: 1.15rem;
+      color: var(--text-body);
+      max-width: 640px;
+      line-height: 1.65;
+      margin-bottom: 2.5rem;
+      font-weight: 420;
+    }
+
+    .cta-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.1rem;
+      justify-content: center;
+      margin-bottom: 3.5rem;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.95rem 2rem;
+      border-radius: 12px;
+      font-weight: 600;
+      font-size: 1.02rem;
+      background: var(--claude-coral);
+      color: #FFFFFF;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(217, 119, 87, 0.32);
+      transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .btn-primary:hover {
+      background: var(--claude-coral-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 22px rgba(217, 119, 87, 0.45);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.95rem 1.8rem;
+      border-radius: 12px;
+      font-weight: 550;
+      font-size: 1.02rem;
+      background: #FFFFFF;
+      color: var(--text-heading);
+      border: 1px solid var(--border-light);
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+      transition: all 0.2s ease;
+    }
+    .btn-secondary:hover {
+      background: #FDFBF7;
+      border-color: rgba(45, 42, 38, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.35rem;
+      width: 100%;
+    }
+
+    .feature-item {
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid var(--border-light);
+      border-radius: 16px;
+      padding: 1.4rem 1.5rem;
+      text-align: left;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.03);
+      transition: all 0.24s ease;
+    }
+    .feature-item:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-2px);
+    }
+
+    .feature-badge {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.15rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .feature-title {
+      font-size: 1.02rem;
+      font-weight: 650;
+      color: var(--text-heading);
+      margin-bottom: 0.4rem;
+    }
+
+    .feature-desc {
+      font-size: 0.87rem;
+      color: var(--text-body);
+      line-height: 1.55;
+    }
+
+    /* ================================================= */
+    /* 视图 2: 使用指南 (Guide Page) 专属排版 */
+    /* ================================================= */
+    .guide-page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem 5rem;
+    }
+
+    .guide-header {
+      margin-bottom: 3rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 2rem;
+    }
+
+    .guide-header h2 {
+      font-size: 2.2rem;
+      font-weight: 750;
+      letter-spacing: -0.03em;
+      margin-bottom: 0.75rem;
+      color: var(--text-heading);
+    }
+
+    .guide-header p {
+      font-size: 1.05rem;
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    /* 流程步骤大卡片 (Steps) */
+    .step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      margin-bottom: 4rem;
+    }
+
+    .step-card {
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid var(--border-light);
+      border-radius: 20px;
+      padding: 2rem 2.2rem;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+      position: relative;
+      display: grid;
+      grid-template-columns: 80px 1fr;
+      gap: 1.75rem;
+      transition: border-color 0.25s ease;
+    }
+    .step-card:hover {
+      border-color: var(--border-hover);
+    }
+
+    .step-number-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-num {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: var(--bg-card-subtle);
+      border: 1px solid var(--border-light);
+      color: var(--claude-coral);
+      font-weight: 750;
+      font-size: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-content h3 {
+      font-size: 1.25rem;
+      font-weight: 680;
+      margin-bottom: 0.6rem;
+      color: var(--text-heading);
+      letter-spacing: -0.015em;
+    }
+
+    .step-content p {
+      font-size: 0.95rem;
+      color: var(--text-body);
+      line-height: 1.65;
+      margin-bottom: 1.1rem;
+    }
+
+    /* 内部小贴士/要点条 */
+    .step-tip {
+      background: var(--bg-card-subtle);
+      border-left: 3px solid var(--claude-coral);
+      padding: 0.75rem 1rem;
+      border-radius: 0 10px 10px 0;
+      font-size: 0.88rem;
+      color: var(--text-body);
+      line-height: 1.5;
+    }
+
+    .step-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .step-tag {
+      font-size: 0.78rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 6px;
+      background: rgba(45, 42, 38, 0.05);
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* 进阶秘诀与 FAQ 区域 */
+    .guide-columns {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 2rem;
+      margin-bottom: 4rem;
+    }
+
+    .column-box {
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid var(--border-light);
+      border-radius: 18px;
+      padding: 1.8rem;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02);
+    }
+
+    .column-box h3 {
+      font-size: 1.15rem;
+      font-weight: 680;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: var(--text-heading);
+    }
+
+    .faq-item {
+      border-bottom: 1px dashed var(--border-light);
+      padding: 0.9rem 0;
+    }
+    .faq-item:last-child {
+      border-bottom: none;
+    }
+
+    .faq-q {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text-heading);
+      margin-bottom: 0.35rem;
+    }
+
+    .faq-a {
+      font-size: 0.88rem;
+      color: var(--text-body);
+      line-height: 1.6;
+    }
+
+    /* 指南底部引导栏 */
+    .guide-footer-cta {
+      background: linear-gradient(135deg, rgba(217, 119, 87, 0.08), rgba(244, 241, 234, 0.8));
+      border: 1px solid rgba(217, 119, 87, 0.2);
+      border-radius: 20px;
+      padding: 2.5rem 2rem;
+      text-align: center;
+    }
+
+    .guide-footer-cta h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.6rem;
+    }
+
+    .guide-footer-cta p {
+      font-size: 0.95rem;
+      color: var(--text-body);
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 640px) {
+      header {
+        padding: 1rem 1.25rem;
+      }
+      .nav-links {
+        display: none; /* 移动端精简 */
+      }
+      .step-card {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+        padding: 1.4rem;
+      }
+      .step-number-box {
+        flex-direction: row;
+        gap: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 像素风格海浪律动画布 -->
+  <canvas id="pixel-wave-canvas"></canvas>
+
+  <!-- 防眩柔光遮罩 -->
+  <div class="bg-vignette"></div>
+
+  <!-- 前景界面 -->
+  <div class="content-container">
+    <header>
+      <div class="brand" onclick="switchView('home')">
+        <div class="brand-icon">🧶</div>
+        <span>拼豆灵感工坊</span>
+      </div>
+
+      <nav class="nav-links">
+        <span class="nav-link" id="nav-home" onclick="switchView('home')">首页</span>
+        <span class="nav-link" id="nav-guide" onclick="switchView('guide')">使用指南</span>
+        <span class="nav-link" onclick="alert('Mard 色卡速查工具即将集成')">Mard 色卡速查</span>
+        <span class="nav-link" onclick="alert('连拼计算器即将集成')">连拼计算器</span>
+      </nav>
+
+      <button class="nav-cta" onclick="alert('进入设计工作台')">
+        进入设计工作台 →
+      </button>
+    </header>
+
+    <!-- ================================================= -->
+    <!-- 视图 1：首页落地页 (Landing Page) -->
+    <!-- ================================================= -->
+    <section id="view-home" class="view-section active">
+      <div class="hero-container">
+        <div class="badge">
+          <div class="badge-dot"></div>
+          <span>Crafting Intelligence · 毫米级拼豆图纸工坊</span>
+        </div>
+
+        <h1>
+          把每一次心动灵感<br />
+          化作指尖<span class="clay-accent">温润真实的拼豆艺术</span>
+        </h1>
+
+        <p class="subtitle">
+          为手作艺术家与像素爱好者打造。采用 Delta-E 智能测色匹配 Mard 与主流色卡，一键导出具备毫米标尺与清晰编号的拼合切板图纸。
+        </p>
+
+        <div class="cta-group">
+          <button class="btn-primary" onclick="alert('触发文件选择器：上传图片后进入工作台')">
+            <span>📤</span>
+            <span>导入图片生成图纸</span>
+          </button>
+          <button class="btn-secondary" onclick="switchView('guide')">
+            <span>📖</span>
+            <span>查看新手指南</span>
+          </button>
+        </div>
+
+        <div class="features-grid">
+          <div class="feature-item">
+            <div class="feature-badge">🎨</div>
+            <div class="feature-title">专业级精准对色</div>
+            <div class="feature-desc">深度适配 Mard、Artkal 标准色谱，Lab 空间计算杜绝怪异色差与断阶。</div>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-badge">📏</div>
+            <div class="feature-title">毫米级实物预测</div>
+            <div class="feature-desc">适配 2.6mm 极细豆与 5.0mm 标准豆，提前预估画框尺寸与用珠总数。</div>
+          </div>
+
+          <div class="feature-item">
+            <div class="feature-badge">🧩</div>
+            <div class="feature-title">工程级连拼切板</div>
+            <div class="feature-desc">大幅作品自动拆解为 28×28 独立打印单板，附带接缝防呆编号。</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================= -->
+    <!-- 视图 2：使用指南 (User Guide) -->
+    <!-- ================================================= -->
+    <section id="view-guide" class="view-section">
+      <div class="guide-page">
+        <div class="guide-header">
+          <h2>从一张图到精致拼豆实物</h2>
+          <p>
+            无需任何美术基础，跟着工坊标准四步法，轻松做出第一件令人惊艳的拼豆作品。
+          </p>
+        </div>
+
+        <!-- 四步流程 -->
+        <div class="step-list">
+          <!-- Step 1 -->
+          <div class="step-card">
+            <div class="step-number-box">
+              <div class="step-num">01</div>
+            </div>
+            <div class="step-content">
+              <h3>选图与智能抠图预处理</h3>
+              <p>
+                推荐挑选主体轮廓清晰、明暗对比分明的高清素材（动漫二次元角色、像素插画、宠物大头照效果最好）。在工坊上传图片后，系统支持自动容差扣除背景，突出创作主体。
+              </p>
+              <div class="step-tip">
+                💡 <strong>新手避坑：</strong>尽量避免背景杂乱或大面积渐变过度的照片，纯色背景或高对比图更容易生成干净利落的像素边缘。
+              </div>
+              <div class="step-tags">
+                <span class="step-tag">#智能扣背景</span>
+                <span class="step-tag">#对比度调节</span>
+                <span class="step-tag">#清晰主体</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="step-card">
+            <div class="step-number-box">
+              <div class="step-num">02</div>
+            </div>
+            <div class="step-content">
+              <h3>选择物理规格与拼板尺寸</h3>
+              <p>
+                根据您的制品用途选择豆子口径与连拼规模。工坊会自动为您计算出以毫米（mm）为单位的真实成品物理尺寸：
+              </p>
+              <div class="step-tip">
+                • <strong>2.6mm 极细豆</strong>：精度极高、细节极其丰富细腻，适合做钥匙扣、胸针、小立牌。<br />
+                • <strong>5.0mm 标准豆</strong>：颗粒大、好抓取、易上手，非常适合新手入门与亲子创作。<br />
+                • <strong>单板 (28×28) vs 连拼</strong>：标准单板尺寸约 7.3cm；大幅作品可选择 2×2（56×56）无缝组合。
+              </div>
+              <div class="step-tags">
+                <span class="step-tag">#2.6mm极细</span>
+                <span class="step-tag">#5.0mm入门</span>
+                <span class="step-tag">#毫米级物理预览</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="step-card">
+            <div class="step-number-box">
+              <div class="step-num">03</div>
+            </div>
+            <div class="step-content">
+              <h3>色卡对色与图纸阅读</h3>
+              <p>
+                系统内置权威的 <strong>Mard 标准色卡</strong>，基于人类视觉感知的 Delta-E 算法精准推荐色号。图纸生成后，每个格子均清晰标有对应色号，右侧还会统计所需豆子总数与色号清单。
+              </p>
+              <div class="step-tip">
+                🏷️ <strong>备料技巧：</strong>提前查看工坊输出的「色号消耗清单」，按清单准备豆子，避免做到一半发现缺色的尴尬。
+              </div>
+              <div class="step-tags">
+                <span class="step-tag">#Mard精准色号</span>
+                <span class="step-tag">#用量清单</span>
+                <span class="step-tag">#单格色号显隐</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="step-card">
+            <div class="step-number-box">
+              <div class="step-num">04</div>
+            </div>
+            <div class="step-content">
+              <h3>物理排珠与熨烫定型</h3>
+              <p>
+                根据图纸将豆子依次摆放在塑料底板上。拼插完成后，使用手作圈最稳妥的<strong>「美纹胶带翻板法」</strong>保护拼豆板不被高温烫弯：
+              </p>
+              <div class="step-tip">
+                🔥 <strong>熨烫关键技巧：</strong><br />
+                1. 铺上耐高温助烫片（光面亮光、哑光雾面任选）；<br />
+                2. 熨斗调至中温（羊毛/丝绸档），<strong>切忌单点长按</strong>，保持顺时针小幅度匀速画圈移动；<br />
+                3. 观察豆孔微缩融合即可停手，趁热用厚书本重压 15 分钟直至彻底冷却，防止成品翘边。
+              </div>
+              <div class="step-tags">
+                <span class="step-tag">#胶带翻板法</span>
+                <span class="step-tag">#均匀打圈</span>
+                <span class="step-tag">#重物压平防翘</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 进阶秘诀与 FAQ -->
+        <div class="guide-columns">
+          <div class="column-box">
+            <h3><span>💡</span> 高手进阶技巧</h3>
+            <div class="faq-item">
+              <div class="faq-q">大幅连拼壁画怎么不散架？</div>
+              <div class="faq-a">多块 28×28 板拼满后，整面贴满美纹胶带并用刮板压实，整体脱板后再移至隔热垫上熨烫，既保护模板又绝对不散。</div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q">双面烫还是单面烫？</div>
+              <div class="faq-a">日常挂件建议微融双面烫，结构牢固耐摔；画框裱装作品建议单面深烫作为背面，正面保留完整中空圆孔，立体感最强。</div>
+            </div>
+          </div>
+
+          <div class="column-box">
+            <h3><span>❓</span> 常见问题 FAQ</h3>
+            <div class="faq-item">
+              <div class="faq-q">为什么打印出来的大小对不上？</div>
+              <div class="faq-a">打印导出 PDF 图纸时，打印机设置务必勾选「实际大小 / 100% 比例」，切勿勾选「适应纸张大小」，即可 1:1 垫在透明板下直接拼。</div>
+            </div>
+            <div class="faq-item">
+              <div class="faq-q">不同品牌的拼豆能混用吗？</div>
+              <div class="faq-a">同一口径（如均为 2.6mm）不同品牌可以混合拼插，但因熔点略有差异，熨烫时需格外留意打圈均匀。</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部进入按钮 -->
+        <div class="guide-footer-cta">
+          <h3>准备好开启你的拼豆之旅了吗？</h3>
+          <p>导入一张你喜爱的图，一秒生成专属于你的色号工程图纸</p>
+          <button class="btn-primary" onclick="alert('进入设计工作台')">
+            <span>🚀</span>
+            <span>立即进入设计工作台</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    // ==========================================================
+    // 页面视图切换管理 (Home <-> Guide)
+    // ==========================================================
+    function switchView(viewName) {
+      const homeSection = document.getElementById('view-home');
+      const guideSection = document.getElementById('view-guide');
+      const navHome = document.getElementById('nav-home');
+      const navGuide = document.getElementById('nav-guide');
+
+      if (viewName === 'guide') {
+        homeSection.classList.remove('active');
+        guideSection.classList.add('active');
+        navHome.classList.remove('active');
+        navGuide.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.location.hash = '#guide';
+      } else {
+        guideSection.classList.remove('active');
+        homeSection.classList.add('active');
+        navGuide.classList.remove('active');
+        navHome.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.location.hash = '';
+      }
+    }
+
+    // 默认高亮状态与 Hash 路由自适应
+    if (window.location.hash === '#guide') {
+      switchView('guide');
+    } else {
+      document.getElementById('nav-home').classList.add('active');
+    }
+
+    // ==========================================================
+    // 像素海浪律动拼豆板引擎 (0.5x 舒缓速度，Claude 大地色调)
+    // ==========================================================
+    const canvas = document.getElementById('pixel-wave-canvas');
+    const ctx = canvas.getContext('2d');
+
+    const CELL_SIZE = 24;
+    const BEAD_PIXEL_SIZE = 16;
+    const HOLE_PIXEL_SIZE = 6;
+
+    const PIXEL_PALETTES = [
+      {
+        name: 'Terracotta Wave',
+        base: '#D97757',
+        shadow: '#B55A3C',
+        light: '#ECA084',
+        holeBg: '#FAF9F5'
+      },
+      {
+        name: 'Ocean Sage',
+        base: '#4A6B5D',
+        shadow: '#334D41',
+        light: '#729987',
+        holeBg: '#FAF9F5'
+      },
+      {
+        name: 'Warm Ochre',
+        base: '#D48C46',
+        shadow: '#AF6E2E',
+        light: '#E8B27C',
+        holeBg: '#FAF9F5'
+      },
+      {
+        name: 'Dusty Rose',
+        base: '#C86D6D',
+        shadow: '#A84F4F',
+        light: '#E29797',
+        holeBg: '#FAF9F5'
+      },
+      {
+        name: 'Slate Sand',
+        base: '#A69279',
+        shadow: '#86725B',
+        light: '#C7B6A1',
+        holeBg: '#FAF9F5'
+      }
+    ];
+
+    let cols = 0;
+    let rows = 0;
+    let width = 0;
+    let height = 0;
+
+    function resize() {
+      const dpr = window.devicePixelRatio || 1;
+      width = window.innerWidth;
+      height = window.innerHeight;
+      
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      ctx.scale(dpr, dpr);
+      
+      ctx.imageSmoothingEnabled = false;
+
+      cols = Math.ceil(width / CELL_SIZE) + 1;
+      rows = Math.ceil(height / CELL_SIZE) + 1;
+    }
+
+    function drawPixelBead(x, y, elevation, colorTheme) {
+      const offsetX = x + Math.floor((CELL_SIZE - BEAD_PIXEL_SIZE) / 2);
+      const offsetY = y + Math.floor((CELL_SIZE - BEAD_PIXEL_SIZE) / 2);
+      const holeOffset = Math.floor((BEAD_PIXEL_SIZE - HOLE_PIXEL_SIZE) / 2);
+
+      if (elevation <= 0.08) {
+        ctx.fillStyle = 'rgba(45, 42, 38, 0.06)';
+        ctx.fillRect(offsetX + holeOffset - 1, offsetY + holeOffset - 1, HOLE_PIXEL_SIZE + 2, HOLE_PIXEL_SIZE + 2);
+        
+        ctx.fillStyle = '#EFECE6';
+        ctx.fillRect(offsetX + holeOffset, offsetY + holeOffset, HOLE_PIXEL_SIZE, HOLE_PIXEL_SIZE);
+        return;
+      }
+
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, elevation * 1.25);
+
+      ctx.fillStyle = 'rgba(45, 42, 38, 0.08)';
+      ctx.fillRect(offsetX + 2, offsetY + 2, BEAD_PIXEL_SIZE, BEAD_PIXEL_SIZE);
+
+      ctx.fillStyle = colorTheme.base;
+      ctx.fillRect(offsetX, offsetY, BEAD_PIXEL_SIZE, BEAD_PIXEL_SIZE);
+
+      ctx.fillStyle = colorTheme.shadow;
+      ctx.fillRect(offsetX, offsetY + BEAD_PIXEL_SIZE - 2, BEAD_PIXEL_SIZE, 2);
+      ctx.fillRect(offsetX + BEAD_PIXEL_SIZE - 2, offsetY, 2, BEAD_PIXEL_SIZE);
+
+      ctx.fillStyle = colorTheme.light;
+      ctx.fillRect(offsetX, offsetY, BEAD_PIXEL_SIZE, 2);
+      ctx.fillRect(offsetX, offsetY, 2, BEAD_PIXEL_SIZE);
+
+      ctx.fillStyle = colorTheme.holeBg;
+      ctx.fillRect(offsetX + holeOffset, offsetY + holeOffset, HOLE_PIXEL_SIZE, HOLE_PIXEL_SIZE);
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.fillRect(offsetX + holeOffset, offsetY + holeOffset, HOLE_PIXEL_SIZE, 1);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(offsetX + 2, offsetY + 2, 2, 2);
+
+      ctx.restore();
+    }
+
+    let waveTime = 0;
+
+    function render() {
+      waveTime += 0.008;
+
+      ctx.clearRect(0, 0, width, height);
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const x = c * CELL_SIZE;
+          const y = r * CELL_SIZE;
+
+          const wave1 = Math.sin((c * 0.18 + r * 0.14) - waveTime * 1.5);
+          const wave2 = Math.cos((c * 0.12 - r * 0.22) + waveTime * 0.8);
+          const wave3 = Math.sin((c * 0.06 + r * 0.08) - waveTime * 0.5);
+
+          const rawWave = (wave1 * 0.55 + wave2 * 0.3 + wave3 * 0.15); 
+          let elevation = (rawWave + 1) * 0.5;
+          elevation = Math.pow(elevation, 2.2);
+
+          const paletteIndex = Math.abs((Math.floor(c * 0.35 + r * 0.25)) % PIXEL_PALETTES.length);
+          const theme = PIXEL_PALETTES[paletteIndex];
+
+          drawPixelBead(x, y, elevation, theme);
+        }
+      }
+
+      requestAnimationFrame(render);
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+    render();
+  </script>
+</body>
+</html>
