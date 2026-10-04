@@ -226,10 +226,10 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
           ctx.fill();
 
           // Hole
-          const holeRadius = radius * 0.38;
+          const holeRadius = radius * (showLabels ? 0.28 : 0.38);
           ctx.beginPath();
           ctx.arc(cx, cy, holeRadius, 0, Math.PI * 2);
-          ctx.fillStyle = '#FFFFFF';
+          ctx.fillStyle = showLabels ? 'rgba(255,255,255,0.45)' : '#FFFFFF';
           ctx.fill();
           ctx.lineWidth = 1;
           ctx.strokeStyle = 'rgba(0,0,0,0.12)';
@@ -251,11 +251,20 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
         }
 
         // Show code label
-        if (showLabels && baseCellSize * scale >= 16) {
-          ctx.fillStyle = getContrastTextColor(bead.hex);
-          ctx.font = `bold ${Math.max(8, Math.floor(baseCellSize * 0.38))}px sans-serif`;
+        if (showLabels && baseCellSize * scale >= 11) {
+          const textColor = getContrastTextColor(bead.hex);
+          const fontSize = Math.max(8, Math.floor(baseCellSize * 0.36));
+          ctx.font = `bold ${fontSize}px sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
+
+          // Anti-contrast outline for clear reading
+          const strokeColor = textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+          ctx.strokeStyle = strokeColor;
+          ctx.lineWidth = Math.max(1, fontSize * 0.22);
+          ctx.strokeText(bead.code, cellX + baseCellSize / 2, cellY + baseCellSize / 2);
+
+          ctx.fillStyle = textColor;
           ctx.fillText(bead.code, cellX + baseCellSize / 2, cellY + baseCellSize / 2);
         }
 
@@ -268,19 +277,19 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
 
         if (isHovered) {
           ctx.strokeStyle = '#3B82F6';
-          ctx.lineWidth = 2.5;
-          ctx.strokeRect(cellX + 1, cellY + 1, baseCellSize - 2, baseCellSize - 2);
+          ctx.lineWidth = 2;
+          ctx.strokeRect(cellX, cellY, baseCellSize, baseCellSize);
         }
 
         ctx.restore();
       }
     }
 
-    // 3. Grid Lines
+    // 3. Draw Grid Lines
     if (showGrid) {
-      // Light cell borders
+      // Thin line per cell
       ctx.lineWidth = 0.5;
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
+      ctx.strokeStyle = 'rgba(150, 160, 180, 0.45)';
       ctx.beginPath();
       for (let x = 0; x <= width; x++) {
         const px = startX + x * baseCellSize;
@@ -294,9 +303,9 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       }
       ctx.stroke();
 
-      // 5-cell thick lines
+      // Bold line per 5 cells
       ctx.lineWidth = 1.2;
-      ctx.strokeStyle = 'rgba(71, 85, 105, 0.55)';
+      ctx.strokeStyle = 'rgba(71, 85, 105, 0.6)';
       ctx.beginPath();
       for (let x = 0; x <= width; x += 5) {
         const px = startX + x * baseCellSize;
@@ -310,9 +319,9 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       }
       ctx.stroke();
 
-      // 10-cell bold lines
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.85)';
+      // Extra bold per 10 cells
+      ctx.lineWidth = 2.0;
+      ctx.strokeStyle = '#1E293B';
       ctx.beginPath();
       for (let x = 0; x <= width; x += 10) {
         const px = startX + x * baseCellSize;
@@ -327,14 +336,13 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       ctx.stroke();
     }
 
-    // 4. Pegboard Seams (物理单板接缝分割线)
+    // 4. Pegboard Seam Lines (拼板分割线)
     if (showPegboardSeams && pegboardWidth > 0 && pegboardHeight > 0) {
       ctx.save();
-      ctx.lineWidth = 3.5;
-      ctx.strokeStyle = '#DC2626'; // High contrast red
-      ctx.setLineDash([8, 4]);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#DC2626'; // High-visibility red boundary
+      ctx.setLineDash([6, 4]);
 
-      // Vertical board boundaries
       for (let x = pegboardWidth; x < width; x += pegboardWidth) {
         const px = startX + x * baseCellSize;
         ctx.beginPath();
@@ -343,7 +351,6 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
         ctx.stroke();
       }
 
-      // Horizontal board boundaries
       for (let y = pegboardHeight; y < height; y += pegboardHeight) {
         const py = startY + y * baseCellSize;
         ctx.beginPath();
@@ -353,28 +360,28 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       }
       ctx.restore();
 
-      // Board Index Badges
+      // Draw Board Tag labels
       const cols = Math.ceil(width / pegboardWidth);
       const rows = Math.ceil(height / pegboardHeight);
       if (cols > 1 || rows > 1) {
         ctx.save();
         ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = '#DC2626';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
         for (let r = 0; r < rows; r++) {
           for (let c = 0; c < cols; c++) {
-            const bx = startX + c * pegboardWidth * baseCellSize + 6;
-            const by = startY + r * pegboardHeight * baseCellSize + 6;
-
-            ctx.fillStyle = 'rgba(254, 242, 242, 0.9)';
-            ctx.fillRect(bx - 2, by - 2, 64, 18);
+            const bx = startX + c * pegboardWidth * baseCellSize + 4;
+            const by = startY + r * pegboardHeight * baseCellSize + 4;
+            ctx.fillStyle = 'rgba(254, 242, 242, 0.85)';
+            ctx.fillRect(bx - 2, by - 2, 60, 18);
             ctx.strokeStyle = '#DC2626';
             ctx.lineWidth = 1;
-            ctx.strokeRect(bx - 2, by - 2, 64, 18);
+            ctx.strokeRect(bx - 2, by - 2, 60, 18);
 
             ctx.fillStyle = '#DC2626';
-            ctx.fillText(`拼板 ${r + 1}-${c + 1}`, bx + 3, by + 2);
+            ctx.fillText(`拼板 ${r + 1}-${c + 1}`, bx + 2, by + 2);
           }
         }
         ctx.restore();
@@ -383,8 +390,11 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
 
     ctx.restore();
   }, [
-    scale,
+    grid,
+    width,
+    height,
     offset,
+    scale,
     renderMode,
     showLabels,
     showGrid,
@@ -394,290 +404,277 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     pegboardHeight,
     highlightColor,
     hoveredCell,
-    grid,
-    height,
-    rulerSize,
-    width
+    rulerSize
   ]);
 
   useEffect(() => {
-    const animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
+    draw();
   }, [draw]);
 
-  // Mouse wheel zoom centered on mouse
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
-    const newScale = Math.min(Math.max(0.15, scale * zoomFactor), 8);
-
-    // Keep point under cursor invariant
-    const newOffsetX = mouseX - (mouseX - offset.x) * (newScale / scale);
-    const newOffsetY = mouseY - (mouseY - offset.y) * (newScale / scale);
-
-    setScale(newScale);
-    setOffset({ x: newOffsetX, y: newOffsetY });
-  };
-
-  // Drag pan (Mouse)
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (isDragging) {
-      setOffset({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
-      setHoveredCell(null);
-      return;
+  // Touch gesture handlers for mobile pinch zoom & pan
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const center = {
+        x: (t1.clientX + t2.clientX) / 2,
+        y: (t1.clientY + t2.clientY) / 2
+      };
+      touchStateRef.current = {
+        startDistance: dist,
+        startScale: scale,
+        startCenter: center,
+        startOffset: { ...offset },
+        isPinching: true,
+        touchStartTime: Date.now(),
+        startPos: center
+      };
+    } else if (e.touches.length === 1) {
+      const t = e.touches[0];
+      touchStateRef.current = {
+        ...touchStateRef.current,
+        isPinching: false,
+        touchStartTime: Date.now(),
+        startPos: { x: t.clientX, y: t.clientY },
+        startOffset: { ...offset }
+      };
+      setIsDragging(true);
+      setDragStart({ x: t.clientX - offset.x, y: t.clientY - offset.y });
     }
+  };
 
-    // Cell hit test
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (e.touches.length === 2 && touchStateRef.current.isPinching) {
+      e.preventDefault();
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const ratio = dist / touchStateRef.current.startDistance;
+      const newScale = Math.min(Math.max(0.2, touchStateRef.current.startScale * ratio), 5);
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const rect = canvas.getBoundingClientRect();
+      const cx = touchStateRef.current.startCenter.x - rect.left;
+      const cy = touchStateRef.current.startCenter.y - rect.top;
+
+      const scaleRatio = newScale / touchStateRef.current.startScale;
+      setOffset({
+        x: cx - (cx - touchStateRef.current.startOffset.x) * scaleRatio,
+        y: cy - (cy - touchStateRef.current.startOffset.y) * scaleRatio
+      });
+      setScale(newScale);
+    } else if (e.touches.length === 1 && isDragging) {
+      const t = e.touches[0];
+      setOffset({
+        x: t.clientX - dragStart.x,
+        y: t.clientY - dragStart.y
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (touchStateRef.current.isPinching && e.touches.length < 2) {
+      touchStateRef.current.isPinching = false;
+    }
+    if (e.touches.length === 0) {
+      const duration = Date.now() - touchStateRef.current.touchStartTime;
+      const moved = Math.hypot(
+        (e.changedTouches[0]?.clientX || 0) - touchStateRef.current.startPos.x,
+        (e.changedTouches[0]?.clientY || 0) - touchStateRef.current.startPos.y
+      );
+
+      // Single tap under 250ms and small displacement -> inspect cell
+      if (duration < 250 && moved < 8 && e.changedTouches[0]) {
+        inspectCellAtClientPos(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+      }
+
+      setIsDragging(false);
+    }
+  };
+
+  const inspectCellAtClientPos = (clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
     const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const mouseX = clientX - rect.left;
+    const mouseY = clientY - rect.top;
 
-    const gridPixelX = (mouseX - offset.x) / scale - rulerSize;
-    const gridPixelY = (mouseY - offset.y) / scale - rulerSize;
+    const canvasX = (mouseX - offset.x) / scale;
+    const canvasY = (mouseY - offset.y) / scale;
 
-    const cellX = Math.floor(gridPixelX / baseCellSize);
-    const cellY = Math.floor(gridPixelY / baseCellSize);
+    const gridX = Math.floor((canvasX - rulerSize) / baseCellSize);
+    const gridY = Math.floor((canvasY - rulerSize) / baseCellSize);
 
-    if (cellX >= 0 && cellX < width && cellY >= 0 && cellY < height) {
-      const color = grid[cellY][cellX];
-      const bCol = pegboardWidth > 0 ? Math.floor(cellX / pegboardWidth) + 1 : 1;
-      const bRow = pegboardHeight > 0 ? Math.floor(cellY / pegboardHeight) + 1 : 1;
+    if (gridX >= 0 && gridX < width && gridY >= 0 && gridY < height) {
+      const bead = grid[gridY][gridX];
+      const boardCol = pegboardWidth > 0 ? Math.floor(gridX / pegboardWidth) + 1 : 1;
+      const boardRow = pegboardHeight > 0 ? Math.floor(gridY / pegboardHeight) + 1 : 1;
 
       setHoveredCell({
-        x: cellX,
-        y: cellY,
-        color,
-        screenX: e.clientX,
-        screenY: e.clientY,
-        boardCol: bCol,
-        boardRow: bRow
+        x: gridX,
+        y: gridY,
+        color: bead,
+        screenX: mouseX,
+        screenY: mouseY,
+        boardCol,
+        boardRow
       });
+
+      if (onSelectColor && bead) {
+        onSelectColor(bead);
+      }
     } else {
       setHoveredCell(null);
     }
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleClick = () => {
-    if (hoveredCell && hoveredCell.color && onSelectColor) {
-      if (highlightColor && highlightColor.code === hoveredCell.color.code) {
-        onSelectColor(null);
-      } else {
-        onSelectColor(hoveredCell.color);
-      }
-    }
-  };
-
-  // -------------------------------------------------------------
-  // 触摸手势事件处理 (移动端单指平移 + 双指捏合缩放 + 轻触拾色)
-  // -------------------------------------------------------------
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (e.touches.length === 1) {
-      // 单指开始拖拽或轻触
-      const touch = e.touches[0];
-      touchStateRef.current = {
-        ...touchStateRef.current,
-        isPinching: false,
-        touchStartTime: Date.now(),
-        startPos: { x: touch.clientX, y: touch.clientY }
-      };
+  // Mouse pan and zoom handlers
+  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (e.button === 0) {
       setIsDragging(true);
-      setDragStart({ x: touch.clientX - offset.x, y: touch.clientY - offset.y });
-    } else if (e.touches.length === 2) {
-      // 双指开始捏合缩放
-      setIsDragging(false);
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      const rect = canvas.getBoundingClientRect();
-      const centerX = (t1.clientX + t2.clientX) / 2 - rect.left;
-      const centerY = (t1.clientY + t2.clientY) / 2 - rect.top;
-
-      touchStateRef.current = {
-        ...touchStateRef.current,
-        isPinching: true,
-        startDistance: distance,
-        startScale: scale,
-        startCenter: { x: centerX, y: centerY },
-        startOffset: { ...offset }
-      };
+      setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     }
   };
 
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    if (e.touches.length === 1 && !touchStateRef.current.isPinching) {
-      // 单指拖动画布
-      const touch = e.touches[0];
+  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (isDragging) {
       setOffset({
-        x: touch.clientX - dragStart.x,
-        y: touch.clientY - dragStart.y
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
       });
-      setHoveredCell(null);
-    } else if (e.touches.length === 2) {
-      // 双指捏合平滑缩放
-      const t1 = e.touches[0];
-      const t2 = e.touches[1];
-      const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
-      if (touchStateRef.current.startDistance <= 0) return;
+    } else {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-      const factor = distance / touchStateRef.current.startDistance;
-      const newScale = Math.min(Math.max(0.15, touchStateRef.current.startScale * factor), 8);
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
 
-      const center = touchStateRef.current.startCenter;
-      const startOff = touchStateRef.current.startOffset;
+      const canvasX = (mouseX - offset.x) / scale;
+      const canvasY = (mouseY - offset.y) / scale;
 
-      const newOffsetX = center.x - (center.x - startOff.x) * (newScale / touchStateRef.current.startScale);
-      const newOffsetY = center.y - (center.y - startOff.y) * (newScale / touchStateRef.current.startScale);
+      const gridX = Math.floor((canvasX - rulerSize) / baseCellSize);
+      const gridY = Math.floor((canvasY - rulerSize) / baseCellSize);
 
-      setScale(newScale);
-      setOffset({ x: newOffsetX, y: newOffsetY });
-    }
-  };
+      if (gridX >= 0 && gridX < width && gridY >= 0 && gridY < height) {
+        const bead = grid[gridY][gridX];
+        const boardCol = pegboardWidth > 0 ? Math.floor(gridX / pegboardWidth) + 1 : 1;
+        const boardRow = pegboardHeight > 0 ? Math.floor(gridY / pegboardHeight) + 1 : 1;
 
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    // 检测轻触拾色 (Tap detection)
-    if (!touchStateRef.current.isPinching && e.changedTouches.length > 0) {
-      const touch = e.changedTouches[0];
-      const duration = Date.now() - touchStateRef.current.touchStartTime;
-      const moveDist = Math.hypot(
-        touch.clientX - touchStateRef.current.startPos.x,
-        touch.clientY - touchStateRef.current.startPos.y
-      );
-
-      if (duration < 300 && moveDist < 8) {
-        // 判定为单指点击
-        const rect = canvas.getBoundingClientRect();
-        const touchX = touch.clientX - rect.left;
-        const touchY = touch.clientY - rect.top;
-
-        const gridPixelX = (touchX - offset.x) / scale - rulerSize;
-        const gridPixelY = (touchY - offset.y) / scale - rulerSize;
-
-        const cellX = Math.floor(gridPixelX / baseCellSize);
-        const cellY = Math.floor(gridPixelY / baseCellSize);
-
-        if (cellX >= 0 && cellX < width && cellY >= 0 && cellY < height) {
-          const color = grid[cellY][cellX];
-          if (color && onSelectColor) {
-            if (highlightColor && highlightColor.code === color.code) {
-              onSelectColor(null);
-            } else {
-              onSelectColor(color);
-            }
-          }
-        }
+        setHoveredCell({
+          x: gridX,
+          y: gridY,
+          color: bead,
+          screenX: mouseX,
+          screenY: mouseY,
+          boardCol,
+          boardRow
+        });
+      } else {
+        setHoveredCell(null);
       }
     }
+  };
 
-    if (e.touches.length === 0) {
-      setIsDragging(false);
-      touchStateRef.current.isPinching = false;
-    }
+  const handleMouseUp = () => setIsDragging(false);
+
+  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    const zoomFactor = e.deltaY < 0 ? 1.15 : 0.88;
+    const newScale = Math.min(Math.max(0.2, scale * zoomFactor), 5);
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    setOffset({
+      x: mouseX - (mouseX - offset.x) * (newScale / scale),
+      y: mouseY - (mouseY - offset.y) * (newScale / scale)
+    });
+    setScale(newScale);
   };
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full overflow-hidden bg-slate-100 select-none touch-none"
+      className="relative w-full h-full overflow-hidden bg-slate-100/70 select-none flex items-center justify-center touch-none"
     >
       <canvas
         ref={canvasRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing block touch-none"
-        onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        onMouseLeave={() => {
-          setIsDragging(false);
-          setHoveredCell(null);
-        }}
-        onClick={handleClick}
+        onMouseLeave={handleMouseUp}
+        onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onTouchCancel={() => {
-          setIsDragging(false);
-          touchStateRef.current.isPinching = false;
-        }}
+        className={`w-full h-full block ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
       />
 
-      {/* Floating Canvas Controls (适应手机屏幕底部) */}
-      <div className="absolute bottom-20 md:bottom-5 left-4 bg-white/95 backdrop-blur-md shadow-lg rounded-xl border border-slate-200/80 p-1 flex items-center gap-1 z-10">
+      {/* Floating Hover / Touch bead detail popup */}
+      {hoveredCell && hoveredCell.color && (
+        <div
+          className="absolute z-20 pointer-events-none bg-slate-900/90 text-white backdrop-blur-md px-3 py-2 rounded-xl text-xs shadow-xl border border-slate-700 flex items-center gap-3 transition-opacity"
+          style={{
+            left: Math.min(Math.max(10, hoveredCell.screenX + 15), (containerRef.current?.clientWidth || 300) - 220),
+            top: Math.min(Math.max(10, hoveredCell.screenY + 15), (containerRef.current?.clientHeight || 300) - 80)
+          }}
+        >
+          <div
+            className="w-5 h-5 rounded-full border border-white/20 shrink-0 shadow-inner"
+            style={{ backgroundColor: hoveredCell.color.hex }}
+          />
+          <div>
+            <div className="font-bold flex items-center gap-1.5">
+              <span>{hoveredCell.color.code}</span>
+              <span className="text-[10px] text-slate-300 font-normal">{hoveredCell.color.name}</span>
+            </div>
+            <div className="text-[10px] text-slate-400">
+              坐标: ({hoveredCell.x + 1}, {hoveredCell.y + 1}) | 拼板: {hoveredCell.boardRow}-{hoveredCell.boardCol}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Zoom & Reset view buttons */}
+      <div className="absolute bottom-3 sm:bottom-4 right-3 sm:right-4 flex items-center gap-1 bg-white/90 backdrop-blur-md p-1 rounded-xl shadow-lg border border-slate-200 z-10">
         <button
-          onClick={() => setScale(s => Math.min(8, s * 1.25))}
+          onClick={() => {
+            const newScale = Math.min(scale * 1.25, 5);
+            setScale(newScale);
+          }}
+          className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg text-slate-700 transition cursor-pointer"
           title="放大"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
         >
           <ZoomIn size={16} />
         </button>
-        <span className="text-[11px] font-semibold font-mono text-slate-600 px-1 min-w-[38px] text-center">
-          {Math.round(scale * 100)}%
-        </span>
         <button
-          onClick={() => setScale(s => Math.max(0.15, s * 0.8))}
+          onClick={() => {
+            const newScale = Math.max(scale * 0.8, 0.2);
+            setScale(newScale);
+          }}
+          className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg text-slate-700 transition cursor-pointer"
           title="缩小"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
         >
           <ZoomOut size={16} />
         </button>
-        <div className="w-[1px] h-3.5 bg-slate-200 mx-0.5" />
+        <div className="w-[1px] h-4 bg-slate-200 mx-0.5" />
         <button
           onClick={resetView}
-          title="居中重置视图"
-          className="p-1.5 hover:bg-slate-100 text-slate-700 rounded-lg transition cursor-pointer"
+          className="p-1.5 sm:p-2 hover:bg-slate-100 rounded-lg text-slate-700 transition cursor-pointer"
+          title="重置视图居中"
         >
           <RotateCcw size={16} />
         </button>
       </div>
-
-      {/* Active Highlight Banner */}
-      {highlightColor && (
-        <div className="absolute top-16 md:top-4 left-4 max-w-[85vw] bg-amber-500 text-white shadow-md rounded-lg px-2.5 py-1.5 text-xs font-medium flex items-center gap-2 z-10">
-          <div
-            className="w-3.5 h-3.5 rounded-full border border-white/60 shadow-sm shrink-0"
-            style={{ backgroundColor: highlightColor.hex }}
-          />
-          <span className="truncate">
-            高亮: <strong>{highlightColor.code} - {highlightColor.name}</strong>
-          </span>
-          <button
-            onClick={() => onSelectColor?.(null)}
-            className="ml-auto bg-amber-600 hover:bg-amber-700 px-1.5 py-0.5 rounded text-[10px] shrink-0 cursor-pointer"
-          >
-            清除
-          </button>
-        </div>
-      )}
     </div>
   );
 };

@@ -1,18 +1,18 @@
 import type { QuantizeResult } from './quantize';
 
-// Helper to decide text color (black or white) based on background brightness
+export const FONT_FAMILY = '"PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", -apple-system, sans-serif';
+
 export function getContrastTextColor(hex: string): string {
   const c = hex.replace('#', '');
   const r = parseInt(c.substring(0, 2), 16);
   const g = parseInt(c.substring(2, 4), 16);
   const b = parseInt(c.substring(4, 6), 16);
-  // Perceived luminance
   const yiq = (r * 299 + g * 587 + b * 114) / 1000;
   return yiq >= 128 ? '#000000' : '#FFFFFF';
 }
 
 export interface ExportOptions {
-  cellSize: number; // e.g. 24 or 32 for print
+  cellSize: number; // Pixels per bead cell (e.g. 24 or 32 for print)
   showGrid: boolean;
   showLabels: boolean;
   showRuler: boolean;
@@ -29,16 +29,16 @@ export function generatePatternCanvas(
   options: ExportOptions
 ): HTMLCanvasElement {
   const {
-    cellSize,
-    showGrid,
-    showLabels,
-    showRuler,
-    showLegend,
+    cellSize = 28,
+    showGrid = true,
+    showLabels = true,
+    showRuler = true,
+    showLegend = true,
     showPegboardSeams = true,
     pegboardWidth = 28,
     pegboardHeight = 28,
-    style,
-    title = '拼豆图纸工坊 (Pixel Bead Pattern)'
+    style = 'bead',
+    title = '拼豆图纸工坊 - 制作图纸'
   } = options;
 
   const { width, height, grid, stats, totalBeads } = result;
@@ -47,7 +47,7 @@ export function generatePatternCanvas(
   const padding = 24;
   const titleHeight = 50;
 
-  // Legend width if shown
+  // Legend dimensions
   const legendWidth = showLegend ? 280 : 0;
 
   const gridPixelWidth = width * cellSize;
@@ -60,22 +60,26 @@ export function generatePatternCanvas(
   canvas.width = totalWidth;
   canvas.height = totalHeight;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Cannot get 2d context');
+  if (!ctx) return canvas;
 
   // Background
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, totalWidth, totalHeight);
 
   // Title
-  ctx.fillStyle = '#1E293B';
-  ctx.font = 'bold 20px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = '#0F172A';
+  ctx.font = `bold 20px ${FONT_FAMILY}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(title, padding, padding + 16);
 
   ctx.fillStyle = '#64748B';
-  ctx.font = '14px "Segoe UI", system-ui, sans-serif';
-  ctx.fillText(`尺寸: ${width} × ${height} 格 | 共计用豆: ${totalBeads} 颗 | 包含色号: ${stats.length} 种 | 单板尺寸: ${pegboardWidth}×${pegboardHeight} 格`, padding, padding + 40);
+  ctx.font = `14px ${FONT_FAMILY}`;
+  ctx.fillText(
+    `尺寸: ${width} × ${height} 格 | 共计用豆: ${totalBeads} 颗 | 包含色号: ${stats.length} 种 | 单板: ${pegboardWidth}×${pegboardHeight} 格`,
+    padding,
+    padding + 40
+  );
 
   // Grid start position
   const gridStartX = padding + rulerSize;
@@ -88,34 +92,34 @@ export function generatePatternCanvas(
     ctx.fillRect(padding, gridStartY, rulerSize, gridPixelHeight);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = '11px sans-serif';
+    ctx.font = `11px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Top Ruler
+    // Top Ruler (X)
     for (let x = 0; x < width; x++) {
       const isTen = (x + 1) % 10 === 0;
       const isFive = (x + 1) % 5 === 0;
       const posX = gridStartX + x * cellSize + cellSize / 2;
 
-      if (cellSize >= 16 || isTen || (cellSize >= 10 && isFive)) {
-        ctx.fillText(`${x + 1}`, posX, padding + titleHeight + rulerSize / 2);
+      if (isTen || isFive || x === 0 || x === width - 1) {
+        ctx.fillText(String(x + 1), posX, padding + titleHeight + rulerSize / 2);
       }
     }
 
-    // Left Ruler
+    // Left Ruler (Y)
     for (let y = 0; y < height; y++) {
       const isTen = (y + 1) % 10 === 0;
       const isFive = (y + 1) % 5 === 0;
       const posY = gridStartY + y * cellSize + cellSize / 2;
 
-      if (cellSize >= 16 || isTen || (cellSize >= 10 && isFive)) {
-        ctx.fillText(`${y + 1}`, padding + rulerSize / 2, posY);
+      if (isTen || isFive || y === 0 || y === height - 1) {
+        ctx.fillText(String(y + 1), padding + rulerSize / 2, posY);
       }
     }
   }
 
-  // Draw Cells
+  // Draw Bead Grid
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const bead = grid[y][x];
@@ -145,10 +149,10 @@ export function generatePatternCanvas(
         ctx.fill();
 
         // Inner peg hole
-        const innerRadius = radius * 0.38;
+        const innerRadius = radius * (showLabels ? 0.28 : 0.38);
         ctx.beginPath();
         ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = showLabels ? 'rgba(255,255,255,0.45)' : '#FFFFFF';
         ctx.fill();
         ctx.lineWidth = 1;
         ctx.strokeStyle = 'rgba(0,0,0,0.15)';
@@ -170,11 +174,20 @@ export function generatePatternCanvas(
       }
 
       // Draw code label
-      if (showLabels && cellSize >= 14) {
-        ctx.fillStyle = getContrastTextColor(bead.hex);
-        ctx.font = `bold ${Math.max(8, Math.floor(cellSize * 0.34))}px sans-serif`;
+      if (showLabels && cellSize >= 10) {
+        const textColor = getContrastTextColor(bead.hex);
+        const fontSize = Math.max(8, Math.floor(cellSize * 0.35));
+        ctx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
+        // High-contrast stroke outline
+        const strokeColor = textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = Math.max(1, fontSize * 0.22);
+        ctx.strokeText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);
+
+        ctx.fillStyle = textColor;
         ctx.fillText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);
       }
     }
@@ -260,7 +273,7 @@ export function generatePatternCanvas(
     const rows = Math.ceil(height / pegboardHeight);
     if (cols > 1 || rows > 1) {
       ctx.save();
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillStyle = '#DC2626';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
@@ -289,14 +302,14 @@ export function generatePatternCanvas(
     let legY = gridStartY;
 
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 16px sans-serif';
+    ctx.font = `bold 16px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText('用料统计清单', legStartX, legY);
 
     legY += 28;
 
-    ctx.font = '12px sans-serif';
+    ctx.font = `12px ${FONT_FAMILY}`;
     ctx.fillStyle = '#64748B';
     ctx.fillText('色号 | 颜色 | 名称 | 颗数', legStartX, legY);
     legY += 18;
@@ -312,17 +325,17 @@ export function generatePatternCanvas(
 
       // Code & Name
       ctx.fillStyle = '#1E293B';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.fillText(stat.color.code, legStartX + 24, legY + 4);
 
       ctx.fillStyle = '#475569';
-      ctx.font = '12px sans-serif';
+      ctx.font = `12px ${FONT_FAMILY}`;
       const label = stat.color.name.length > 7 ? stat.color.name.slice(0, 6) + '..' : stat.color.name;
       ctx.fillText(label, legStartX + 65, legY + 4);
 
       // Count
       ctx.fillStyle = '#0F172A';
-      ctx.font = 'bold 12px monospace';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.textAlign = 'right';
       ctx.fillText(`${stat.count} 颗`, legStartX + 220, legY + 4);
       ctx.textAlign = 'left';
@@ -338,11 +351,11 @@ export function exportCsvStats(stats: QuantizeResult['stats'], totalBeads: numbe
   let csv = '\uFEFF'; // UTF-8 BOM
   csv += '色号,颜色名称,所属品牌,十六进制HEX,用量(颗),占比(%)\n';
 
-  stats.forEach(item => {
+  for (const item of stats) {
     csv += `"${item.color.code}","${item.color.name}","${item.color.brandName}","${item.color.hex}",${item.count},${item.percentage.toFixed(2)}%\n`;
-  });
+  }
 
-  csv += `\n"总计","共 ${stats.length} 种颜色","","前台统计",${totalBeads},"100.00%"\n`;
+  csv += `\n"总计","","","",${totalBeads},"100.00%"\n`;
 
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);

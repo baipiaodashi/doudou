@@ -1,5 +1,8 @@
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import type { QuantizeResult } from './quantize.js';
+
+// 确保在服务端具备通用字体回退
+export const FONT_FAMILY = '"WenQuanYi Micro Hei", "DejaVu Sans", "Noto Sans CJK SC", "Microsoft YaHei", sans-serif';
 
 export function getContrastTextColor(hex: string): string {
   const c = hex.replace('#', '');
@@ -66,13 +69,13 @@ export async function renderPatternImageServer(
 
   // Title
   ctx.fillStyle = '#1E293B';
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = `bold 20px ${FONT_FAMILY}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   ctx.fillText(title, padding, padding + 16);
 
   ctx.fillStyle = '#64748B';
-  ctx.font = '14px sans-serif';
+  ctx.font = `14px ${FONT_FAMILY}`;
   ctx.fillText(
     `尺寸: ${width} × ${height} 格 | 共计用豆: ${totalBeads} 颗 | 包含色号: ${stats.length} 种 | 单板尺寸: ${pegboardWidth}×${pegboardHeight} 格`,
     padding,
@@ -90,7 +93,7 @@ export async function renderPatternImageServer(
     ctx.fillRect(padding, gridStartY, rulerSize, gridPixelHeight);
 
     ctx.fillStyle = '#64748B';
-    ctx.font = '11px sans-serif';
+    ctx.font = `11px ${FONT_FAMILY}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -160,23 +163,32 @@ export async function renderPatternImageServer(
         ctx.stroke();
 
         // Inner hole
-        const innerRadius = radius * 0.38;
+        // When labels are displayed, keep the inner hole subtle so it won't conflict with text
+        const innerRadius = radius * (shouldShowLabels ? 0.28 : 0.38);
         ctx.beginPath();
         ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
-        ctx.fillStyle = '#FFFFFF';
+        ctx.fillStyle = shouldShowLabels ? 'rgba(255,255,255,0.45)' : '#FFFFFF';
         ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+        ctx.strokeStyle = 'rgba(0,0,0,0.15)';
         ctx.lineWidth = 1;
         ctx.stroke();
       }
 
       // Draw Color Code Label
-      if (shouldShowLabels && cellSize >= 14) {
+      if (shouldShowLabels && cellSize >= 10) {
         const textColor = getContrastTextColor(bead.hex);
-        ctx.fillStyle = textColor;
-        ctx.font = `bold ${Math.max(8, Math.floor(cellSize * 0.34))}px sans-serif`;
+        const fontSize = Math.max(8, Math.floor(cellSize * 0.35));
+        ctx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+
+        // High-contrast stroke outline to ensure absolute readability on any bead color
+        const strokeColor = textColor === '#FFFFFF' ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.85)';
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = Math.max(1, fontSize * 0.22);
+        ctx.strokeText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);
+
+        ctx.fillStyle = textColor;
         ctx.fillText(bead.code, cellX + cellSize / 2, cellY + cellSize / 2);
       }
     }
@@ -240,7 +252,7 @@ export async function renderPatternImageServer(
     const legendY = gridStartY;
 
     ctx.fillStyle = '#0F172A';
-    ctx.font = 'bold 15px sans-serif';
+    ctx.font = `bold 15px ${FONT_FAMILY}`;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
     ctx.fillText(`色号用量清单 (${stats.length}色)`, legendX, legendY);
@@ -258,24 +270,24 @@ export async function renderPatternImageServer(
 
       // Color code & name
       ctx.fillStyle = '#1E293B';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
       ctx.fillText(stat.color.code, legendX + 28, itemY + 10);
 
       ctx.fillStyle = '#64748B';
-      ctx.font = '11px sans-serif';
+      ctx.font = `11px ${FONT_FAMILY}`;
       const maxName = stat.color.name.length > 7 ? stat.color.name.slice(0, 6) + '..' : stat.color.name;
       ctx.fillText(maxName, legendX + 70, itemY + 10);
 
       // Bead count & percentage
       ctx.fillStyle = '#4338CA';
-      ctx.font = 'bold 12px sans-serif';
+      ctx.font = `bold 12px ${FONT_FAMILY}`;
       ctx.textAlign = 'right';
       ctx.fillText(`${stat.count}颗`, legendX + legendWidth - 50, itemY + 10);
 
       ctx.fillStyle = '#94A3B8';
-      ctx.font = '10px sans-serif';
+      ctx.font = `10px ${FONT_FAMILY}`;
       ctx.fillText(`${stat.percentage.toFixed(1)}%`, legendX + legendWidth, itemY + 10);
     });
   }

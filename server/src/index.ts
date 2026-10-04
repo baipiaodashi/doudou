@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { GlobalFonts } from '@napi-rs/canvas';
 import { TaskQueue, MemoryCache } from './queue.js';
 import { quantizeImageServer } from './quantize.js';
 import { renderPatternImageServer } from './exportPattern.js';
@@ -35,6 +36,7 @@ app.get('/api/health', (_req, res) => {
     concurrencyLimit: MAX_CONCURRENT,
     runningTasks: queue.running,
     queuedTasks: queue.queueLength,
+    availableFonts: GlobalFonts.families.map(f => f.family),
     timestamp: Date.now()
   });
 });
@@ -87,7 +89,7 @@ app.post('/api/render-export', async (req, res) => {
     }
 
     // Bump this when raster output changes so stale PNGs cannot hide renderer fixes.
-    const cacheKey = MemoryCache.generateKey('export-v2-labels-centered', result, options);
+    const cacheKey = MemoryCache.generateKey('export-v4-wqy-fonts', result, options);
     const cachedPng = exportCache.get(cacheKey);
     if (cachedPng) {
       res.setHeader('Content-Type', 'image/png');
@@ -135,5 +137,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(` 拼豆图纸工坊 VPS 渲染服务已启动`);
   console.log(` 监听端口: http://0.0.0.0:${PORT}`);
   console.log(` 单核并发保护数: ${MAX_CONCURRENT}`);
+  console.log(` 可用渲染字体:`, GlobalFonts.families.map(f => f.family));
   console.log(`=================================================`);
 });
