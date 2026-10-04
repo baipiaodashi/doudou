@@ -7,8 +7,8 @@
     width: 100%;
     height: 100%;
     min-height: 100vh;
-    background-color: #f8fafc;
-    color: #1e293b;
+    background-color: #FAF9F5;
+    color: #1F1E1D;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     overscroll-behavior-y: none;
     -webkit-text-size-adjust: 100%;
@@ -27,20 +27,20 @@
   }
 }
 
-/* Custom scrollbars */
+/* Warm Paper Custom scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: #FAF9F5;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: #E2DFD7;
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #C7C2B6;
 }
 
 /* Hide scrollbar utility */
@@ -50,4 +50,109 @@
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Frosted Glass Overlay Transitions (总长约 2 秒舒缓手作仪式感) */
+@keyframes frostedGlassIn {
+  0% {
+    opacity: 0;
+    backdrop-filter: blur(0px) saturate(100%);
+    -webkit-backdrop-filter: blur(0px) saturate(100%);
+    background-color: rgba(250, 249, 245, 0);
+  }
+  100% {
+    opacity: 1;
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    background-color: rgba(250, 249, 245, 0.78);
+  }
+}
+
+@keyframes frostedGlassOut {
+  0% {
+    opacity: 1;
+    backdrop-filter: blur(32px) saturate(160%);
+    -webkit-backdrop-filter: blur(32px) saturate(160%);
+    background-color: rgba(250, 249, 245, 0.78);
+  }
+  100% {
+    opacity: 0;
+    backdrop-filter: blur(0px) saturate(100%);
+    -webkit-backdrop-filter: blur(0px) saturate(100%);
+    background-color: rgba(250, 249, 245, 0);
+  }
+}
+
+@keyframes frostedCardIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(16px);
+    filter: blur(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes frostedCardOut {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05) translateY(-10px);
+    filter: blur(8px);
+  }
+}
+
+@keyframes progressSweep {
+  0% {
+    width: 0%;
+  }
+  45% {
+    width: 60%;
+  }
+  85% {
+    width: 90%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.animate-frosted-in {
+  animation: frostedGlassIn 0.9s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+.animate-frosted-out {
+  animation: frostedGlassOut 0.9s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+.animate-frosted-card-in {
+  animation: frostedCardIn 0.9s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+.animate-frosted-card-out {
+  animation: frostedCardOut 0.85s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+.animate-progress-sweep {
+  animation: progressSweep 1.9s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 25px -4px rgba(217, 119, 87, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 50px 8px rgba(217, 119, 87, 0.7);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.4s ease-in-out infinite;
 }

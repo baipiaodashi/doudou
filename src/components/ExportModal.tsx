@@ -55,7 +55,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       } catch (err: any) {
         console.warn('VPS 导出失败，自动尝试降级为本地浏览器渲染', err);
         setStatusMessage('VPS 队列拥堵，正在自动切换为本地渲染...');
-        // 自动降级本地
         try {
           const canvas = generatePatternCanvas(result, {
             ...options,
@@ -121,91 +120,91 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-3 sm:p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-slate-100 max-h-[92vh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-3 sm:p-4">
+      <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-[#2D2A26]/10 max-h-[92vh] flex flex-col">
         {/* Header */}
-        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Download size={18} />
+        <div className="px-5 py-4 sm:px-6 border-b border-[#2D2A26]/10 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#D97757]/10 text-[#D97757] flex items-center justify-center shrink-0">
+              <Download size={20} />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-slate-800">导出制作图纸</h3>
-              <p className="text-[10px] sm:text-[11px] text-slate-400">支持服务端高清输出与本地多模式选择</p>
+              <h3 className="font-bold text-base text-[#1F1E1D]">导出制作图纸</h3>
+              <p className="text-xs text-[#85827C]">支持服务端高清输出与本地多模式选择</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition cursor-pointer"
+            className="p-1.5 hover:bg-[#FAF9F5] rounded-xl text-[#85827C] hover:text-[#1F1E1D] transition cursor-pointer"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* Content (Scrollable) */}
-        <div className="p-4 sm:p-6 space-y-4 text-xs text-slate-600 overflow-y-auto flex-1">
+        <div className="p-4 sm:p-6 space-y-4 text-xs text-[#54524E] overflow-y-auto flex-1">
           {/* 渲染节点选择 */}
-          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3">
-            <label className="font-semibold text-slate-700 block mb-2">生图渲染引擎节点</label>
+          <div className="bg-[#FAF9F5] border border-[#2D2A26]/10 rounded-2xl p-3.5">
+            <label className="font-bold text-[#1F1E1D] block mb-2">生图渲染引擎节点</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setUseVps(true)}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer ${
                   useVps
-                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 shadow-xs'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                    ? 'border-[#D97757] bg-[#D97757]/10 text-[#1F1E1D] shadow-xs'
+                    : 'border-[#2D2A26]/10 bg-white text-[#54524E] hover:bg-[#FAF9F5]'
                 }`}
               >
-                <div className={`p-1.5 rounded-md shrink-0 ${useVps ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-1.5 rounded-lg shrink-0 ${useVps ? 'bg-[#D97757] text-white' : 'bg-[#FAF9F5] text-[#85827C]'}`}>
                   <Server size={14} />
                 </div>
                 <div>
-                  <div className="font-bold flex items-center gap-1">
+                  <div className="font-bold flex items-center gap-1 text-[#1F1E1D]">
                     <span>VPS 云端渲染</span>
-                    <span className="text-[10px] bg-green-100 text-green-700 px-1 py-0.2 rounded font-normal">推荐</span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-medium">推荐</span>
                   </div>
-                  <div className="text-[10px] text-slate-400">由服务器排版，手机/低配不崩溃</div>
+                  <div className="text-[10px] text-[#85827C]">由服务器排版，手机/低配不崩溃</div>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setUseVps(false)}
-                className={`flex items-center gap-2.5 p-2.5 rounded-lg border text-left transition cursor-pointer ${
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition cursor-pointer ${
                   !useVps
-                    ? 'border-indigo-600 bg-indigo-50/60 text-indigo-900 shadow-xs'
-                    : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                    ? 'border-[#D97757] bg-[#D97757]/10 text-[#1F1E1D] shadow-xs'
+                    : 'border-[#2D2A26]/10 bg-white text-[#54524E] hover:bg-[#FAF9F5]'
                 }`}
               >
-                <div className={`p-1.5 rounded-md shrink-0 ${!useVps ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                <div className={`p-1.5 rounded-lg shrink-0 ${!useVps ? 'bg-[#D97757] text-white' : 'bg-[#FAF9F5] text-[#85827C]'}`}>
                   <Laptop size={14} />
                 </div>
                 <div>
-                  <div className="font-bold">本地访客设备</div>
-                  <div className="text-[10px] text-slate-400">浏览器离线绘制，图纸过大易闪退</div>
+                  <div className="font-bold text-[#1F1E1D]">本地访客设备</div>
+                  <div className="text-[10px] text-[#85827C]">浏览器离线绘制，图纸过大易闪退</div>
                 </div>
               </button>
             </div>
           </div>
 
           <div>
-            <label className="font-semibold text-slate-700 block mb-1.5">图纸标题</label>
+            <label className="font-bold text-[#1F1E1D] block mb-1.5">图纸标题</label>
             <input
               type="text"
               value={options.title}
               onChange={e => setOptions({ ...options, title: e.target.value })}
-              className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+              className="w-full text-xs px-3 py-2 border border-[#2D2A26]/10 rounded-xl bg-white text-[#1F1E1D] focus:ring-2 focus:ring-[#D97757]/20 focus:border-[#D97757] transition"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="font-semibold text-slate-700 block mb-1.5">分辨率 (单格大小)</label>
+              <label className="font-bold text-[#1F1E1D] block mb-1.5">分辨率 (单格大小)</label>
               <select
                 value={options.cellSize}
                 onChange={e => setOptions({ ...options, cellSize: Number(e.target.value) })}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
+                className="w-full text-xs px-3 py-2 border border-[#2D2A26]/10 rounded-xl focus:ring-2 focus:ring-[#D97757]/20 focus:border-[#D97757] bg-white text-[#1F1E1D]"
               >
                 <option value={16}>标准 (16px / 格)</option>
                 <option value={24}>清晰 (24px / 格)</option>
@@ -216,11 +215,11 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
 
             <div>
-              <label className="font-semibold text-slate-700 block mb-1.5">图纸渲染风格</label>
+              <label className="font-bold text-[#1F1E1D] block mb-1.5">图纸渲染风格</label>
               <select
                 value={options.style}
                 onChange={e => setOptions({ ...options, style: e.target.value as 'bead' | 'flat' })}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 bg-white"
+                className="w-full text-xs px-3 py-2 border border-[#2D2A26]/10 rounded-xl focus:ring-2 focus:ring-[#D97757]/20 focus:border-[#D97757] bg-white text-[#1F1E1D]"
               >
                 <option value="bead">拟真圆孔拼豆</option>
                 <option value="flat">平铺方块格</option>
@@ -228,107 +227,97 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             </div>
           </div>
 
-          <div className="border border-slate-100 rounded-xl p-3 bg-slate-50 space-y-2.5">
-            <span className="font-semibold text-slate-700 block">导出附加图层</span>
+          <div className="border border-[#2D2A26]/10 rounded-2xl p-3.5 bg-[#FAF9F5] space-y-2.5">
+            <span className="font-bold text-[#1F1E1D] block">导出附加图层</span>
             
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[#54524E]">
               <input
                 type="checkbox"
                 checked={options.showLabels}
                 onChange={e => setOptions({ ...options, showLabels: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#2D2A26]/20 text-[#D97757] focus:ring-[#D97757]"
               />
-              <span>在格子标注色号 (如 M01, P04)</span>
+              <span>在格子上标注色号 (推荐开启)</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[#54524E]">
               <input
                 type="checkbox"
                 checked={options.showGrid}
                 onChange={e => setOptions({ ...options, showGrid: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#2D2A26]/20 text-[#D97757] focus:ring-[#D97757]"
               />
-              <span>包含网格线 (5格/10格粗线辅助对齐)</span>
+              <span>网格分割线</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[#54524E]">
               <input
                 type="checkbox"
                 checked={options.showPegboardSeams}
                 onChange={e => setOptions({ ...options, showPegboardSeams: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#2D2A26]/20 text-[#D97757] focus:ring-[#D97757]"
               />
-              <span className="text-red-600 font-medium">包含拼豆板接缝线与板编号 (单板: {pegboardWidth}×{pegboardHeight})</span>
+              <span className="text-[#C15F3F] font-medium">拼豆板拼接防呆红线与分块编号</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[#54524E]">
               <input
                 type="checkbox"
                 checked={options.showRuler}
                 onChange={e => setOptions({ ...options, showRuler: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#2D2A26]/20 text-[#D97757] focus:ring-[#D97757]"
               />
-              <span>包含顶部与左侧数字标尺 (1, 5, 10...)</span>
+              <span>外框行列标尺</span>
             </label>
 
-            <label className="flex items-center gap-2 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer text-[#54524E]">
               <input
                 type="checkbox"
                 checked={options.showLegend}
                 onChange={e => setOptions({ ...options, showLegend: e.target.checked })}
-                className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                className="rounded border-[#2D2A26]/20 text-[#D97757] focus:ring-[#D97757]"
               />
-              <span>附带色号用料统计对照表</span>
+              <span>底部用料统计与色卡对照表</span>
             </label>
           </div>
 
-          {/* 缓冲提示 */}
-          {downloading && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-800 animate-pulse">
-              <Loader2 size={16} className="animate-spin text-amber-600 shrink-0" />
-              <div className="text-[11px] leading-tight">
-                <span className="font-semibold block">{statusMessage || '正在生成高清图纸...'}</span>
-                <span className="text-amber-600/80">服务器已开启并发缓冲保护，请稍候...</span>
-              </div>
+          {statusMessage && (
+            <div className="bg-[#D97757]/10 border border-[#D97757]/30 text-[#C15F3F] p-3 rounded-xl flex items-center gap-2 text-xs">
+              <Loader2 size={14} className="animate-spin shrink-0" />
+              <span>{statusMessage}</span>
             </div>
           )}
         </div>
 
         {/* Footer Actions */}
-        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-t border-[#2D2A26]/10 bg-[#FAF9F5] flex items-center justify-between gap-3 shrink-0">
           <button
+            type="button"
             onClick={handleExportPixel}
             disabled={downloading}
-            className="text-xs text-slate-600 hover:text-slate-800 flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 transition cursor-pointer disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[#2D2A26]/10 text-[#54524E] hover:text-[#D97757] hover:bg-white transition cursor-pointer text-xs font-medium"
+            title="导出每个拼豆占 1 像素的精细源图"
           >
             <ImageIcon size={14} />
-            <span className="hidden sm:inline">导出</span> 1:1 像素图
+            <span>导出 1:1 像素图</span>
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex gap-2">
             <button
+              type="button"
               onClick={onClose}
-              disabled={downloading}
-              className="text-xs px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-slate-600 hover:bg-slate-200 transition cursor-pointer disabled:opacity-50"
+              className="px-4 py-2 rounded-xl border border-[#2D2A26]/10 text-[#54524E] hover:bg-white transition cursor-pointer text-xs font-medium"
             >
               取消
             </button>
             <button
+              type="button"
               onClick={handleExportHiRes}
               disabled={downloading}
-              className="text-xs px-3.5 py-1.5 sm:px-5 sm:py-2 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 shadow-md shadow-indigo-600/20 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#D97757] hover:bg-[#C15F3F] text-white transition shadow-sm hover:shadow cursor-pointer text-xs font-bold disabled:opacity-50"
             >
-              {downloading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>处理中...</span>
-                </>
-              ) : (
-                <>
-                  <Download size={14} />
-                  <span>下载PNG图纸</span>
-                </>
-              )}
+              {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              <span>{downloading ? '导出中...' : '生成高清图纸并保存'}</span>
             </button>
           </div>
         </div>

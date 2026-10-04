@@ -1,36 +1,20 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { Upload, BookOpen, Sparkles, Ruler, Grid, Palette } from 'lucide-react';
 
 interface LandingHeroProps {
-  onImageSelected: (file: File) => void;
+  onImageSelected?: (file: File) => void;
+  onImportClick: () => void;
   onEnterStudio: () => void;
   onOpenGuide: () => void;
 }
 
 export const LandingHero: React.FC<LandingHeroProps> = ({
-  onImageSelected,
+  onImportClick,
   onEnterStudio,
   onOpenGuide,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onImageSelected(file);
-    }
-  };
-
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 py-12 sm:py-16 text-center max-w-4xl mx-auto">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-
       {/* 顶部小标贴 */}
       <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium bg-[#D97757]/10 border border-[#D97757]/25 text-[#C15F3F] mb-6">
         <span className="w-2 h-2 rounded-full bg-[#D97757] animate-pulse" />
@@ -51,10 +35,10 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
       {/* 核心操作按钮组 */}
       <div className="flex flex-wrap items-center justify-center gap-4 mb-14">
         <button
-          onClick={() => fileInputRef.current?.click()}
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-base bg-[#D97757] text-white shadow-md hover:bg-[#C15F3F] hover:shadow-lg hover:-translate-y-0.5 transition-all cursor-pointer"
+          onClick={onImportClick}
+          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-base bg-[#D97757] text-white shadow-md hover:bg-[#C15F3F] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-98 transition-all cursor-pointer group"
         >
-          <Upload className="w-5 h-5" />
+          <Upload className="w-5 h-5 transition-transform group-hover:scale-110" />
           <span>导入图片生成图纸</span>
         </button>
 
@@ -77,7 +61,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
       {/* 特性卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full text-left">
-        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-sm hover:border-[#D97757]/35 transition-all">
+        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-xs hover:shadow-md hover:border-[#D97757]/35 transition-all">
           <div className="w-10 h-10 rounded-lg bg-[#F4F1EA] border border-[#2D2A26]/10 flex items-center justify-center mb-3">
             <Sparkles className="w-5 h-5 text-[#D97757]" />
           </div>
@@ -87,7 +71,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
           </div>
         </div>
 
-        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-sm hover:border-[#D97757]/35 transition-all">
+        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-xs hover:shadow-md hover:border-[#D97757]/35 transition-all">
           <div className="w-10 h-10 rounded-lg bg-[#F4F1EA] border border-[#2D2A26]/10 flex items-center justify-center mb-3">
             <Ruler className="w-5 h-5 text-[#D97757]" />
           </div>
@@ -97,7 +81,7 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
           </div>
         </div>
 
-        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-sm hover:border-[#D97757]/35 transition-all">
+        <div className="bg-white/85 border border-[#2D2A26]/10 rounded-2xl p-5 sm:p-6 backdrop-blur-md shadow-xs hover:shadow-md hover:border-[#D97757]/35 transition-all">
           <div className="w-10 h-10 rounded-lg bg-[#F4F1EA] border border-[#2D2A26]/10 flex items-center justify-center mb-3">
             <Grid className="w-5 h-5 text-[#D97757]" />
           </div>
