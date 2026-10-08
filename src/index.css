@@ -156,3 +156,124 @@
 .animate-pulse-glow {
   animation: pulseGlow 2.4s ease-in-out infinite;
 }
+
+/* 3D 翻页与透视类 */
+.perspective-1200 {
+  perspective: 1200px;
+  -webkit-perspective: 1200px;
+}
+.perspective-1600 {
+  perspective: 1600px;
+  -webkit-perspective: 1600px;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 调色盘极致流畅旋转（单一递增曲线，绝无掉帧与顿挫） */
+@keyframes smoothSpin360 {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes paletteScaleIn {
+  0% {
+    transform: scale(0.35);
+    opacity: 0.6;
+  }
+  65% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes paletteDisperseOut {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+    filter: blur(0px);
+  }
+  100% {
+    transform: scale(2.6) rotate(35deg);
+    opacity: 0;
+    filter: blur(24px);
+  }
+}
+
+@keyframes mistRingExpand {
+  0% {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  30% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+@keyframes mistHazeSpread {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+    filter: blur(8px);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(32px);
+  }
+  85% {
+    opacity: 0.95;
+    transform: scale(1.05);
+    filter: blur(32px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
+    filter: blur(48px);
+  }
+}
+
+.animate-smooth-spin {
+  animation: smoothSpin360 0.82s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  will-change: transform;
+}
+
+.animate-palette-scale-in {
+  animation: paletteScaleIn 0.82s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-palette-disperse-out {
+  animation: paletteDisperseOut 0.45s cubic-bezier(0.25, 1, 0.35, 1) forwards;
+  will-change: transform, opacity, filter;
+}
+
+.animate-mist-ring-1 {
+  animation: mistRingExpand 1.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-mist-ring-2 {
+  animation: mistRingExpand 1.1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+}
+
+.animate-mist-haze {
+  animation: mistHazeSpread 1.15s cubic-bezier(0.25, 1, 0.3, 1) forwards;
+}

@@ -13,6 +13,8 @@ import { checkVpsHealth, requestVpsQuantize } from './services/vpsService';
 import { PixelWaveCanvas } from './components/PixelWaveCanvas';
 import { LandingHero } from './components/LandingHero';
 import { UserGuide } from './components/UserGuide';
+import { PaletteStudioTransition } from './components/PaletteStudioTransition';
+import { BookGuideTransition } from './components/BookGuideTransition';
 import { FrostedTransition } from './components/FrostedTransition';
 import {
   Upload,
@@ -46,6 +48,19 @@ export const App: React.FC = () => {
   });
 
   // 磨砂玻璃转场动画阶段: 'idle' (无) | 'in' (磨砂渐入) | 'out' (磨砂渐出消散)
+  const [isPaletteTransition, setIsPaletteTransition] = useState(false);
+  const [isBookTransition, setIsBookTransition] = useState(false);
+
+  const handleEnterStudioWithPaletteTransition = () => {
+    if (isPaletteTransition || isBookTransition || transitionStage !== 'idle') return;
+    setIsPaletteTransition(true);
+  };
+
+  const handleOpenGuideWithBookTransition = () => {
+    if (isPaletteTransition || isBookTransition || transitionStage !== 'idle') return;
+    setIsBookTransition(true);
+  };
+
   const [transitionStage, setTransitionStage] = useState<'idle' | 'in' | 'out'>('idle');
 
   const navigateTo = (view: 'home' | 'guide' | 'studio') => {
@@ -437,6 +452,33 @@ export const App: React.FC = () => {
         <FrostedTransition phase={transitionStage === 'in' ? 'in' : 'out'} />
       )}
 
+      {/* 调色盘放大旋转一圈 + 雾化效果转场至空白工作台 */}
+      {isPaletteTransition && (
+        <PaletteStudioTransition
+          onSwappedView={() => {
+            setPageView('studio');
+            window.location.hash = '#studio';
+          }}
+          onFinished={() => {
+            setIsPaletteTransition(false);
+          }}
+        />
+      )}
+
+      {/* 书本放大 + 翻页动画 + 渲染新手指南 + 平滑过渡放大铺满整个窗口 */}
+      {isBookTransition && (
+        <BookGuideTransition
+          onSwappedView={() => {
+            setPageView('guide');
+            window.location.hash = '#guide';
+            window.scrollTo({ top: 0, behavior: 'instant' });
+          }}
+          onFinished={() => {
+            setIsBookTransition(false);
+          }}
+        />
+      )}
+
       {/* 首页或指南视图 */}
       {pageView !== 'studio' ? (
         <div className="min-h-screen bg-[#FAF9F5] text-[#1F1E1D] flex flex-col relative selection:bg-[#D97757]/20 font-sans">
@@ -460,7 +502,13 @@ export const App: React.FC = () => {
                 {pageView === 'home' && <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D97757] rounded-full" />}
               </button>
               <button
-                onClick={() => navigateTo('guide')}
+                onClick={() => {
+                  if (pageView === 'home') {
+                    handleOpenGuideWithBookTransition();
+                  } else {
+                    navigateTo('guide');
+                  }
+                }}
                 className={`hover:text-[#D97757] transition-colors cursor-pointer relative py-1 ${pageView === 'guide' ? 'text-[#D97757] font-semibold' : ''}`}
               >
                 使用指南
@@ -469,7 +517,13 @@ export const App: React.FC = () => {
             </nav>
 
             <button
-              onClick={() => navigateTo('studio')}
+              onClick={() => {
+                if (pageView === 'home') {
+                  handleEnterStudioWithPaletteTransition();
+                } else {
+                  navigateTo('studio');
+                }
+              }}
               className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white bg-[#1F1E1D] hover:bg-[#D97757] transition-all shadow-sm hover:shadow-md cursor-pointer"
             >
               进入设计工作台 →
@@ -481,11 +535,11 @@ export const App: React.FC = () => {
             {pageView === 'home' ? (
               <LandingHero
                 onImportClick={handleImportImageFromLanding}
-                onEnterStudio={() => navigateTo('studio')}
-                onOpenGuide={() => navigateTo('guide')}
+                onEnterStudio={handleEnterStudioWithPaletteTransition}
+                onOpenGuide={handleOpenGuideWithBookTransition}
               />
             ) : (
-              <UserGuide onStartCreating={() => navigateTo('studio')} />
+              <UserGuide onStartCreating={handleEnterStudioWithPaletteTransition} />
             )}
           </main>
         </div>

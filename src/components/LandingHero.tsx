@@ -34,27 +34,33 @@ export const LandingHero: React.FC<LandingHeroProps> = ({
 
       {/* 核心操作按钮组 */}
       <div className="flex flex-wrap items-center justify-center gap-4 mb-14">
+        {/* 1. 导入图片生成图纸 */}
         <button
           onClick={onImportClick}
-          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-base bg-[#D97757] text-white shadow-md hover:bg-[#C15F3F] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-98 transition-all cursor-pointer group"
+          className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl font-semibold text-base bg-[#D97757] text-white shadow-md hover:bg-[#C15F3F] hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer group"
+          title="导入本地图片并智能量化"
         >
           <Upload className="w-5 h-5 transition-transform group-hover:scale-110" />
           <span>导入图片生成图纸</span>
         </button>
 
+        {/* 2. 进入空白工作台（点击触发调色盘旋转放大与雾化转场） */}
         <button
           onClick={onEnterStudio}
-          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-medium text-base bg-white/90 text-[#1F1E1D] border border-[#2D2A26]/10 hover:border-[#D97757]/40 hover:bg-[#FAF9F5] shadow-sm hover:shadow transition-all cursor-pointer"
+          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-medium text-base bg-white/95 text-[#1F1E1D] border border-[#2D2A26]/12 hover:border-[#D97757]/45 hover:bg-[#FAF9F5] shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer group relative overflow-hidden"
+          title="进入空白工作台创作"
         >
-          <Palette className="w-5 h-5 text-[#D97757]" />
+          <Palette className="w-5 h-5 text-[#D97757] transition-all duration-300 group-hover:rotate-12 group-hover:scale-110" />
           <span>进入空白工作台</span>
         </button>
 
+        {/* 3. 新手使用指南（点击触发书本3D翻页渲染与全屏过渡） */}
         <button
           onClick={onOpenGuide}
-          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-medium text-base bg-white/90 text-[#54524E] border border-[#2D2A26]/10 hover:border-[#D97757]/40 hover:bg-[#FAF9F5] shadow-sm hover:shadow transition-all cursor-pointer"
+          className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl font-medium text-base bg-white/95 text-[#54524E] border border-[#2D2A26]/12 hover:border-[#D97757]/45 hover:bg-[#FAF9F5] shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all cursor-pointer group relative overflow-hidden"
+          title="查看新手制作四步法教程"
         >
-          <BookOpen className="w-5 h-5 text-[#85827C]" />
+          <BookOpen className="w-5 h-5 text-[#85827C] transition-all duration-300 group-hover:text-[#D97757] group-hover:scale-110" />
           <span>新手使用指南</span>
         </button>
       </div>
