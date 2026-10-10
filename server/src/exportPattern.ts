@@ -1,4 +1,4 @@
-import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
+import { createCanvas } from '@napi-rs/canvas';
 import type { QuantizeResult } from './quantize.js';
 
 // 确保在服务端具备通用字体回退

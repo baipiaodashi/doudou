@@ -109,8 +109,9 @@ function adjustPixel(
   ];
 }
 
-export function processImageToPattern(
-  img: HTMLImageElement,
+// Pure CPU calculation of quantization on raw RGBA byte buffer
+export function quantizePixelData(
+  data: Uint8ClampedArray | Uint8Array,
   options: ProcessOptions
 ): QuantizeResult {
   const {
@@ -126,24 +127,9 @@ export function processImageToPattern(
     maxColors
   } = options;
 
-  // 1. Draw source image to temp canvas with target size
-  const tempCanvas = document.createElement('canvas');
-  tempCanvas.width = width;
-  tempCanvas.height = height;
-  const ctx = tempCanvas.getContext('2d');
-  if (!ctx) throw new Error('Cannot get 2D context');
-
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, width, height);
-
-  const imgData = ctx.getImageData(0, 0, width, height);
-  const data = imgData.data;
-
-  // 2. Filter palette if maxColors is set
+  // 1. Filter palette if maxColors is set
   let activePalette = palette;
   if (maxColors && maxColors > 0 && maxColors < palette.length) {
-    // Histogram to pick top colors
     const colorUsageMap = new Map<string, number>();
     for (let i = 0; i < data.length; i += 4) {
       if (data[i + 3] < 128) continue;
@@ -159,7 +145,7 @@ export function processImageToPattern(
     if (activePalette.length === 0) activePalette = palette.slice(0, maxColors);
   }
 
-  // 3. Prepare Grid & Floyd-Steinberg error buffers
+  // 2. Prepare Grid & Floyd-Steinberg error buffers
   const grid: (BeadColor | null)[][] = Array.from({ length: height }, () => 
     Array.from({ length: width }, () => null)
   );
@@ -183,7 +169,7 @@ export function processImageToPattern(
     })
   );
 
-  // 4. Quantize each pixel
+  // 3. Quantize each pixel
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       const p = pixels[y][x];
@@ -223,7 +209,7 @@ export function processImageToPattern(
     }
   }
 
-  // 5. Calculate statistics
+  // 4. Calculate statistics
   const countMap = new Map<string, { color: BeadColor; count: number }>();
   let totalBeads = 0;
 
@@ -257,4 +243,25 @@ export function processImageToPattern(
     stats,
     totalBeads
   };
+}
+
+export function processImageToPattern(
+  img: HTMLImageElement,
+  options: ProcessOptions
+): QuantizeResult {
+  const { width, height } = options;
+
+  // Draw source image to temp canvas with target size
+  const tempCanvas = document.createElement('canvas');
+  tempCanvas.width = width;
+  tempCanvas.height = height;
+  const ctx = tempCanvas.getContext('2d');
+  if (!ctx) throw new Error('Cannot get 2D context');
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, width, height);
+
+  const imgData = ctx.getImageData(0, 0, width, height);
+  return quantizePixelData(imgData.data, options);
 }

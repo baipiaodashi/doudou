@@ -31,6 +31,12 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Container dimension state to avoid reading ref during render
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number }>({
+    width: 800,
+    height: 600
+  });
+
   // Pan and Zoom viewport state
   const [scale, setScale] = useState<number>(1);
   const [offset, setOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -77,6 +83,8 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     const { clientWidth, clientHeight } = containerRef.current;
     if (clientWidth === 0 || clientHeight === 0) return;
 
+    setContainerSize({ width: clientWidth, height: clientHeight });
+
     const contentW = width * baseCellSize + rulerSize + 40;
     const contentH = height * baseCellSize + rulerSize + 40;
 
@@ -97,20 +105,6 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     resetView();
   }, [resetView]);
 
-  // Window resize observer to adapt DPR and viewport changes
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver(() => {
-      // Repaint on container resize
-      draw();
-    });
-    observer.observe(container);
-
-    return () => observer.disconnect();
-  }, []);
-
   // Render loop
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -130,216 +124,222 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, rect.width, rect.height);
 
-    // Apply viewport transform
+    ctx.save();
     ctx.translate(offset.x, offset.y);
     ctx.scale(scale, scale);
 
     const startX = rulerSize;
     const startY = rulerSize;
 
-    // Draw Ruler Headers
-    if (showRuler) {
-      ctx.save();
-      ctx.fillStyle = '#EDEAE3';
-      ctx.fillRect(0, 0, startX + width * baseCellSize, rulerSize);
-      ctx.fillRect(0, 0, rulerSize, startY + height * baseCellSize);
-
-      ctx.fillStyle = '#FAF9F5';
-      ctx.fillRect(0, 0, rulerSize, rulerSize);
-
-      ctx.font = '10px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
-      ctx.fillStyle = '#54524E';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      // Horizontal ruler labels
-      for (let x = 0; x < width; x++) {
-        const num = x + 1;
-        const cx = startX + x * baseCellSize + baseCellSize / 2;
-        const cy = rulerSize / 2;
-        const isMajor = num % 5 === 0 || num === 1 || num === width;
-        ctx.fillStyle = isMajor ? '#1F1E1D' : '#85827C';
-        ctx.font = isMajor ? 'bold 10px sans-serif' : '9px sans-serif';
-        ctx.fillText(num.toString(), cx, cy);
-      }
-
-      // Vertical ruler labels
-      for (let y = 0; y < height; y++) {
-        const num = y + 1;
-        const cx = rulerSize / 2;
-        const cy = startY + y * baseCellSize + baseCellSize / 2;
-        const isMajor = num % 5 === 0 || num === 1 || num === height;
-        ctx.fillStyle = isMajor ? '#1F1E1D' : '#85827C';
-        ctx.font = isMajor ? 'bold 10px sans-serif' : '9px sans-serif';
-        ctx.fillText(num.toString(), cx, cy);
-      }
-      ctx.restore();
-    }
-
-    // Draw Main Cells & Beads
+    // 1. Draw Beads
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const bead = grid[y][x];
         const cellX = startX + x * baseCellSize;
         const cellY = startY + y * baseCellSize;
 
-        // Is cell selected/highlighted?
-        const isHighlighted = highlightColor && bead && bead.code === highlightColor.code;
-        const isDimmed = highlightColor && (!bead || bead.code !== highlightColor.code);
+        let isDimmed = false;
+        if (highlightColor) {
+          isDimmed = !bead || bead.code !== highlightColor.code;
+        }
 
         ctx.save();
         if (isDimmed) {
-          ctx.globalAlpha = 0.22;
+          ctx.globalAlpha = 0.15;
         }
 
-        if (renderMode === 'flat') {
-          // Flat solid square representation
-          if (bead) {
-            ctx.fillStyle = bead.hex;
-            ctx.fillRect(cellX, cellY, baseCellSize, baseCellSize);
-          } else {
-            // Empty / Transparent background cell
-            ctx.fillStyle = '#F4F1EA';
-            ctx.fillRect(cellX, cellY, baseCellSize, baseCellSize);
-            ctx.fillStyle = '#E8E4DA';
-            const s = baseCellSize / 2;
-            ctx.fillRect(cellX, cellY, s, s);
-            ctx.fillRect(cellX + s, cellY + s, s, s);
-          }
-        } else {
-          // Bead mode: pegboard peg base + realistic round bead with center hole
+        if (!bead) {
           ctx.fillStyle = '#FFFFFF';
           ctx.fillRect(cellX, cellY, baseCellSize, baseCellSize);
 
+          ctx.strokeStyle = '#E2E8F0';
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(cellX + 4, cellY + 4);
+          ctx.lineTo(cellX + baseCellSize - 4, cellY + baseCellSize - 4);
+          ctx.moveTo(cellX + baseCellSize - 4, cellY + 4);
+          ctx.lineTo(cellX + 4, cellY + baseCellSize - 4);
+          ctx.stroke();
+        } else if (renderMode === 'flat') {
+          ctx.fillStyle = bead.hex;
+          ctx.fillRect(cellX, cellY, baseCellSize, baseCellSize);
+        } else {
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(cellX, cellY, baseCellSize, baseCellSize);
+
+          const radius = (baseCellSize / 2) - 1.5;
           const centerX = cellX + baseCellSize / 2;
           const centerY = cellY + baseCellSize / 2;
-          const outerRadius = baseCellSize * 0.44;
-          const innerRadius = baseCellSize * 0.16;
 
-          if (bead) {
-            // Bead Body
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
-            ctx.fillStyle = bead.hex;
-            ctx.fill();
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          ctx.fillStyle = bead.hex;
+          ctx.fill();
 
-            // Subtle depth ring border
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.14)';
-            ctx.lineWidth = 1;
-            ctx.stroke();
+          ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+          ctx.stroke();
 
-            // Bead Center Hole
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
-            ctx.fillStyle = '#F4F1EA';
-            ctx.fill();
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.22)';
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
+          const grad = ctx.createRadialGradient(
+            centerX - radius * 0.35,
+            centerY - radius * 0.35,
+            radius * 0.1,
+            centerX,
+            centerY,
+            radius
+          );
+          grad.addColorStop(0, 'rgba(255, 255, 255, 0.38)');
+          grad.addColorStop(0.7, 'rgba(255, 255, 255, 0)');
+          grad.addColorStop(1, 'rgba(0, 0, 0, 0.18)');
 
-            // Peg pin inside center hole
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, innerRadius * 0.45, 0, Math.PI * 2);
-            ctx.fillStyle = '#D6D1C4';
-            ctx.fill();
-          } else {
-            // Empty Pegboard pin placeholder
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, baseCellSize * 0.12, 0, Math.PI * 2);
-            ctx.fillStyle = '#D6D1C4';
-            ctx.fill();
-          }
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(centerX, centerY, radius * 0.38, 0, Math.PI * 2);
+          ctx.fillStyle = '#E5E7EB';
+          ctx.fill();
+
+          ctx.lineWidth = 0.8;
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+          ctx.stroke();
         }
 
-        // Highlight halo for selected color
-        if (isHighlighted) {
-          ctx.strokeStyle = '#D97757';
-          ctx.lineWidth = 2.5;
-          ctx.strokeRect(cellX + 1, cellY + 1, baseCellSize - 2, baseCellSize - 2);
-        }
-
-        // Draw Color Code Label on Cell
-        if (showLabels && bead && scale >= 0.45) {
-          const fontSize = Math.max(7, Math.min(10, Math.floor(baseCellSize * 0.38)));
-          ctx.font = `bold ${fontSize}px monospace`;
+        // Draw Labels
+        if (showLabels && bead && scale >= 0.75) {
+          const fontSize = Math.min(10, Math.max(7, Math.floor(baseCellSize * 0.36)));
+          ctx.font = `600 ${fontSize}px "JetBrains Mono", Menlo, Consolas, sans-serif`;
           ctx.textAlign = 'center';
           ctx.textBaseline = 'middle';
 
-          // Auto pick contrast text color
-          const hex = bead.hex.replace('#', '');
-          const r = parseInt(hex.substring(0, 2), 16) || 0;
-          const g = parseInt(hex.substring(2, 4), 16) || 0;
-          const b = parseInt(hex.substring(4, 6), 16) || 0;
-          const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-          ctx.fillStyle = brightness > 140 ? '#1F1E1D' : '#FFFFFF';
+          const rgb = bead.rgb;
+          const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+          ctx.fillStyle = brightness > 155 ? '#000000' : '#FFFFFF';
 
-          const textY = renderMode === 'bead' ? cellY + baseCellSize * 0.78 : cellY + baseCellSize / 2;
-          ctx.fillText(bead.code, cellX + baseCellSize / 2, textY);
+          const shortCode = bead.code;
+          ctx.fillText(shortCode, cellX + baseCellSize / 2, cellY + baseCellSize / 2);
         }
 
         ctx.restore();
       }
     }
 
-    // Draw Grid Lines
+    // 2. Draw Grid Lines
     if (showGrid) {
       ctx.save();
-      ctx.strokeStyle = '#2D2A26';
-      ctx.globalAlpha = 0.12;
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = '#CBD5E1';
 
-      // Vertical lines
+      ctx.beginPath();
       for (let x = 0; x <= width; x++) {
-        ctx.beginPath();
-        ctx.moveTo(startX + x * baseCellSize, startY);
-        ctx.lineTo(startX + x * baseCellSize, startY + height * baseCellSize);
-        ctx.stroke();
+        const px = startX + x * baseCellSize;
+        ctx.moveTo(px, startY);
+        ctx.lineTo(px, startY + height * baseCellSize);
       }
-
-      // Horizontal lines
       for (let y = 0; y <= height; y++) {
-        ctx.beginPath();
-        ctx.moveTo(startX, startY + y * baseCellSize);
-        ctx.lineTo(startX + width * baseCellSize, startY + y * baseCellSize);
-        ctx.stroke();
+        const py = startY + y * baseCellSize;
+        ctx.moveTo(startX, py);
+        ctx.lineTo(startX + width * baseCellSize, py);
       }
+      ctx.stroke();
+
+      // Bold 5/10 step major grid lines
+      ctx.lineWidth = 1.2;
+      ctx.strokeStyle = '#94A3B8';
+      ctx.beginPath();
+      for (let x = 0; x <= width; x += 5) {
+        const px = startX + x * baseCellSize;
+        ctx.moveTo(px, startY);
+        ctx.lineTo(px, startY + height * baseCellSize);
+      }
+      for (let y = 0; y <= height; y += 5) {
+        const py = startY + y * baseCellSize;
+        ctx.moveTo(startX, py);
+        ctx.lineTo(startX + width * baseCellSize, py);
+      }
+      ctx.stroke();
       ctx.restore();
     }
 
-    // Draw Pegboard Seams (Thick red-orange dividing lines)
-    if (showPegboardSeams && (pegboardWidth > 0 || pegboardHeight > 0)) {
+    // 3. Draw Pegboard Seam Guides
+    if (showPegboardSeams && pegboardWidth > 0 && pegboardHeight > 0) {
       ctx.save();
-      ctx.strokeStyle = '#D97757';
       ctx.lineWidth = 2.5;
+      ctx.strokeStyle = '#D97757';
+      ctx.setLineDash([6, 4]);
 
-      // Vertical seams
-      if (pegboardWidth > 0) {
-        for (let x = pegboardWidth; x < width; x += pegboardWidth) {
-          ctx.beginPath();
-          ctx.moveTo(startX + x * baseCellSize, startY);
-          ctx.lineTo(startX + x * baseCellSize, startY + height * baseCellSize);
-          ctx.stroke();
-        }
+      ctx.beginPath();
+      for (let x = pegboardWidth; x < width; x += pegboardWidth) {
+        const px = startX + x * baseCellSize;
+        ctx.moveTo(px, startY);
+        ctx.lineTo(px, startY + height * baseCellSize);
       }
-
-      // Horizontal seams
-      if (pegboardHeight > 0) {
-        for (let y = pegboardHeight; y < height; y += pegboardHeight) {
-          ctx.beginPath();
-          ctx.moveTo(startX, startY + y * baseCellSize);
-          ctx.lineTo(startX + width * baseCellSize, startY + y * baseCellSize);
-          ctx.stroke();
-        }
+      for (let y = pegboardHeight; y < height; y += pegboardHeight) {
+        const py = startY + y * baseCellSize;
+        ctx.moveTo(startX, py);
+        ctx.lineTo(startX + width * baseCellSize, py);
       }
+      ctx.stroke();
       ctx.restore();
+    }
 
-      // Draw Board Tag labels
+    // 4. Draw Outer Frame
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#475569';
+    ctx.strokeRect(startX, startY, width * baseCellSize, height * baseCellSize);
+    ctx.restore();
+
+    // 5. Draw Rulers
+    if (showRuler) {
+      ctx.save();
+      ctx.fillStyle = '#FAF9F5';
+      ctx.fillRect(startX, 0, width * baseCellSize, rulerSize);
+      ctx.fillRect(0, startY, rulerSize, height * baseCellSize);
+
+      ctx.fillStyle = '#64748B';
+      ctx.font = '10px "JetBrains Mono", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let x = 0; x < width; x++) {
+        const val = x + 1;
+        if (val === 1 || val % 5 === 0 || val === width) {
+          const px = startX + x * baseCellSize + baseCellSize / 2;
+          ctx.fillText(String(val), px, rulerSize / 2);
+        }
+      }
+
+      for (let y = 0; y < height; y++) {
+        const val = y + 1;
+        if (val === 1 || val % 5 === 0 || val === height) {
+          const py = startY + y * baseCellSize + baseCellSize / 2;
+          ctx.fillText(String(val), rulerSize / 2, py);
+        }
+      }
+
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(startX, rulerSize);
+      ctx.lineTo(startX + width * baseCellSize, rulerSize);
+      ctx.moveTo(rulerSize, startY);
+      ctx.lineTo(rulerSize, startY + height * baseCellSize);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 6. Draw Pegboard Sub-board Badges
+    if (showPegboardSeams && pegboardWidth > 0 && pegboardHeight > 0) {
       const cols = Math.ceil(width / pegboardWidth);
       const rows = Math.ceil(height / pegboardHeight);
+
       if (cols > 1 || rows > 1) {
         ctx.save();
-        ctx.font = 'bold 11px sans-serif';
-        ctx.fillStyle = '#C15F3F';
+        ctx.font = 'bold 9px sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
 
@@ -347,11 +347,9 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
           for (let c = 0; c < cols; c++) {
             const bx = startX + c * pegboardWidth * baseCellSize + 4;
             const by = startY + r * pegboardHeight * baseCellSize + 4;
-            ctx.fillStyle = 'rgba(255, 248, 245, 0.92)';
-            ctx.fillRect(bx - 2, by - 2, 60, 18);
-            ctx.strokeStyle = '#D97757';
-            ctx.lineWidth = 1;
-            ctx.strokeRect(bx - 2, by - 2, 60, 18);
+
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.fillRect(bx - 2, by - 2, 48, 14);
 
             ctx.fillStyle = '#C15F3F';
             ctx.fillText(`拼板 ${r + 1}-${c + 1}`, bx + 2, by + 2);
@@ -376,16 +374,67 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
     pegboardWidth,
     pegboardHeight,
     highlightColor,
-    hoveredCell,
     rulerSize
   ]);
+
+  // Window resize observer to adapt DPR and viewport changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      setContainerSize({ width: container.clientWidth, height: container.clientHeight });
+      draw();
+    });
+    observer.observe(container);
+
+    return () => observer.disconnect();
+  }, [draw]);
 
   useEffect(() => {
     draw();
   }, [draw]);
 
+  const inspectCellAtClientPos = useCallback((clientX: number, clientY: number) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = clientX - rect.left;
+    const mouseY = clientY - rect.top;
+
+    const canvasX = (mouseX - offset.x) / scale;
+    const canvasY = (mouseY - offset.y) / scale;
+
+    const gridX = Math.floor((canvasX - rulerSize) / baseCellSize);
+    const gridY = Math.floor((canvasY - rulerSize) / baseCellSize);
+
+    if (gridX >= 0 && gridX < width && gridY >= 0 && gridY < height) {
+      const bead = grid[gridY][gridX];
+      const boardCol = pegboardWidth > 0 ? Math.floor(gridX / pegboardWidth) + 1 : 1;
+      const boardRow = pegboardHeight > 0 ? Math.floor(gridY / pegboardHeight) + 1 : 1;
+
+      setHoveredCell({
+        x: gridX,
+        y: gridY,
+        color: bead,
+        screenX: mouseX,
+        screenY: mouseY,
+        boardCol,
+        boardRow
+      });
+
+      if (onSelectColor && bead) {
+        onSelectColor(bead);
+      }
+    } else {
+      setHoveredCell(null);
+    }
+  }, [offset.x, offset.y, scale, rulerSize, width, height, grid, pegboardWidth, pegboardHeight, onSelectColor]);
+
   // Touch gesture handlers for mobile pinch zoom & pan
   const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const now = Date.now();
     if (e.touches.length === 2) {
       e.preventDefault();
       const t1 = e.touches[0];
@@ -401,7 +450,7 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
         startCenter: center,
         startOffset: { ...offset },
         isPinching: true,
-        touchStartTime: Date.now(),
+        touchStartTime: now,
         startPos: center
       };
     } else if (e.touches.length === 1) {
@@ -409,7 +458,7 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       touchStateRef.current = {
         ...touchStateRef.current,
         isPinching: false,
-        touchStartTime: Date.now(),
+        touchStartTime: now,
         startPos: { x: t.clientX, y: t.clientY },
         startOffset: { ...offset }
       };
@@ -449,11 +498,12 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    const now = Date.now();
     if (touchStateRef.current.isPinching && e.touches.length < 2) {
       touchStateRef.current.isPinching = false;
     }
     if (e.touches.length === 0) {
-      const duration = Date.now() - touchStateRef.current.touchStartTime;
+      const duration = now - touchStateRef.current.touchStartTime;
       const moved = Math.hypot(
         (e.changedTouches[0]?.clientX || 0) - touchStateRef.current.startPos.x,
         (e.changedTouches[0]?.clientY || 0) - touchStateRef.current.startPos.y
@@ -465,43 +515,6 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
       }
 
       setIsDragging(false);
-    }
-  };
-
-  const inspectCellAtClientPos = (clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = clientX - rect.left;
-    const mouseY = clientY - rect.top;
-
-    const canvasX = (mouseX - offset.x) / scale;
-    const canvasY = (mouseY - offset.y) / scale;
-
-    const gridX = Math.floor((canvasX - rulerSize) / baseCellSize);
-    const gridY = Math.floor((canvasY - rulerSize) / baseCellSize);
-
-    if (gridX >= 0 && gridX < width && gridY >= 0 && gridY < height) {
-      const bead = grid[gridY][gridX];
-      const boardCol = pegboardWidth > 0 ? Math.floor(gridX / pegboardWidth) + 1 : 1;
-      const boardRow = pegboardHeight > 0 ? Math.floor(gridY / pegboardHeight) + 1 : 1;
-
-      setHoveredCell({
-        x: gridX,
-        y: gridY,
-        color: bead,
-        screenX: mouseX,
-        screenY: mouseY,
-        boardCol,
-        boardRow
-      });
-
-      if (onSelectColor && bead) {
-        onSelectColor(bead);
-      }
-    } else {
-      setHoveredCell(null);
     }
   };
 
@@ -597,8 +610,8 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
         <div
           className="absolute z-20 pointer-events-none bg-[#1F1E1D]/95 text-white backdrop-blur-md px-3.5 py-2.5 rounded-2xl text-xs shadow-xl border border-white/10 flex items-center gap-3 transition-opacity"
           style={{
-            left: Math.min(Math.max(10, hoveredCell.screenX + 15), (containerRef.current?.clientWidth || 300) - 220),
-            top: Math.min(Math.max(10, hoveredCell.screenY + 15), (containerRef.current?.clientHeight || 300) - 80)
+            left: Math.min(Math.max(10, hoveredCell.screenX + 15), containerSize.width - 220),
+            top: Math.min(Math.max(10, hoveredCell.screenY + 15), containerSize.height - 80)
           }}
         >
           <div
@@ -639,11 +652,10 @@ export const PatternCanvas: React.FC<PatternCanvasProps> = ({
         >
           <ZoomOut size={16} />
         </button>
-        <div className="w-[1px] h-4 bg-[#2D2A26]/10 mx-0.5" />
         <button
           onClick={resetView}
           className="p-1.5 sm:p-2 hover:bg-[#FAF9F5] hover:text-[#D97757] rounded-xl transition cursor-pointer"
-          title="重置视图居中"
+          title="复位视口"
         >
           <RotateCcw size={16} />
         </button>
